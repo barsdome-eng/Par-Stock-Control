@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Search, Calculator, Trash2, ChevronRight, GlassWater, Info, Package, AlertTriangle, CheckCircle2, User as UserIcon, Bot, Zap, Sparkles, RefreshCcw, Plus, LogOut, LogIn, Cloud, CloudOff } from 'lucide-react';
+import { Search, Calculator, Trash2, ChevronRight, ChevronDown, GlassWater, Info, Package, AlertTriangle, CheckCircle2, User as UserIcon, Bot, Zap, Sparkles, RefreshCcw, Plus, LogOut, LogIn, Cloud, CloudOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, auth, signIn, logOut, handleFirestoreError } from './lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
@@ -343,6 +343,7 @@ export default function App() {
   const [editingRecipe, setEditingRecipe] = useState<Cocktail | null>(null);
   const [isSpiritDialogOpen, setIsSpiritDialogOpen] = useState(false);
   const [spiritMode, setSpiritMode] = useState<'add' | 'remove'>('add');
+  const [expandedMonths, setExpandedMonths] = useState<string[]>([]);
   const [newSpiritName, setNewSpiritName] = useState('');
   const [newSpiritBtlSize, setNewSpiritBtlSize] = useState('750');
   const [newSpiritGlassSize, setNewSpiritGlassSize] = useState('45');
@@ -587,12 +588,20 @@ export default function App() {
   const [selectedCocktail, setSelectedCocktail] = useState<Cocktail | null>(null);
   const [selectedLog, setSelectedLog] = useState<DailyLog | null>(null);
   const [logToDelete, setLogToDelete] = useState<string | null>(null);
-
-  // Clean up logs older than 30 days
+  // Initialize expandedMonths with the most recent month
   useEffect(() => {
-    const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+    if (logs.length > 0 && expandedMonths.length === 0) {
+      const mostRecent = new Date(logs[0].timestamp);
+      const monthYear = mostRecent.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      setExpandedMonths([monthYear]);
+    }
+  }, [logs]);
+
+  // Clean up logs older than 365 days (Full year retention)
+  useEffect(() => {
+    const oneYearAgo = Date.now() - (365 * 24 * 60 * 60 * 1000);
     setLogs(prev => {
-      const filtered = prev.filter(log => log.timestamp > thirtyDaysAgo);
+      const filtered = prev.filter(log => log.timestamp > oneYearAgo);
       if (filtered.length !== prev.length) {
         return filtered;
       }
@@ -1245,50 +1254,101 @@ export default function App() {
                {logs.length === 0 ? (
                  <Card className="bg-zinc-900 border-zinc-800 p-12 text-center text-zinc-600">
                     <RefreshCcw className="mx-auto mb-4 w-12 h-12 opacity-10" />
-                    <p className="uppercase text-xs tracking-widest">No history found (logs are kept for 30 days)</p>
+                    <p className="uppercase text-xs tracking-widest">No history found (logs are kept for 365 days)</p>
                  </Card>
                ) : (
-                 <div className="space-y-4">
-                   {logs.map(log => {
-                     const stats = getCategoryStats(log.usage);
+                 <div className="space-y-8">
+                   {(Object.entries(
+                     logs.reduce((acc: Record<string, DailyLog[]>, log) => {
+                       const date = new Date(log.timestamp);
+                       const monthYear = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+                       if (!acc[monthYear]) acc[monthYear] = [];
+                       acc[monthYear].push(log);
+                       return acc;
+                     }, {})
+                   ) as [string, DailyLog[]][]).sort(([a], [b]) => new Date(b).getTime() - new Date(a).getTime())
+                   .map(([monthYear, monthLogs]) => {
+                     const isExpanded = expandedMonths.includes(monthYear);
                      return (
-                       <Card 
-                          key={log.date} 
-                          onClick={() => setSelectedLog(log)}
-                          className="bg-zinc-900 border-zinc-800 overflow-hidden hover:border-zinc-600 transition-all cursor-pointer active:scale-[0.99] group"
-                       >
-                         <div className="p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                            <div className="space-y-1">
-                               <p className="text-blue-500 font-mono text-lg font-bold">{formatDate(log.date)}</p>
-                               <p className="text-[10px] text-zinc-500 uppercase tracking-tighter">Session: {new Date(log.timestamp).toLocaleTimeString()}</p>
-                            </div>
-                            <div className="flex gap-8 flex-1 justify-center">
-                               <div className="text-center">
-                                  <p className="text-[10px] text-zinc-500 uppercase mb-1">Sig</p>
-                                  <p className="text-lg font-bold text-white">{stats.signatures}</p>
-                               </div>
-                               <div className="text-center">
-                                  <p className="text-[10px] text-zinc-500 uppercase mb-1">Clas</p>
-                                  <p className="text-lg font-bold text-white">{stats.classics}</p>
-                               </div>
-                               <div className="text-center">
-                                  <p className="text-[10px] text-zinc-500 uppercase mb-1">Spir</p>
-                                  <p className="text-lg font-bold text-white">{stats.spirits}</p>
-                               </div>
-                            </div>
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setLogToDelete(log.date);
-                              }}
-                              className="text-zinc-700 hover:text-red-500 hover:bg-red-500/10"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                         </div>
-                       </Card>
+                       <div key={monthYear} className="space-y-4">
+                         <button 
+                           onClick={() => setExpandedMonths(prev => 
+                             prev.includes(monthYear) 
+                               ? prev.filter(m => m !== monthYear) 
+                               : [...prev, monthYear]
+                           )}
+                           className="flex items-center gap-4 w-full group hover:opacity-80 transition-opacity"
+                         >
+                           <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-widest leading-none shrink-0">{monthYear}</h3>
+                           <div className="h-[1px] flex-1 bg-zinc-800/50"></div>
+                           <ChevronDown className={`w-4 h-4 text-zinc-600 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                         </button>
+                         
+                         <AnimatePresence>
+                           {isExpanded && (
+                             <motion.div 
+                               initial={{ height: 0, opacity: 0 }}
+                               animate={{ height: 'auto', opacity: 1 }}
+                               exit={{ height: 0, opacity: 0 }}
+                               className="space-y-3 overflow-hidden"
+                             >
+                               {monthLogs.sort((a,b) => b.timestamp - a.timestamp).map(log => {
+                                 const stats = getCategoryStats(log.usage);
+                                 const totalDrinks = (log.usage || []).reduce((sum: number, r: UsageRecord) => sum + r.quantity, 0);
+                                 return (
+                                   <Card 
+                                      key={log.date} 
+                                      onClick={() => setSelectedLog(log)}
+                                      className="bg-zinc-900 border-zinc-800 overflow-hidden hover:border-zinc-700 transition-all cursor-pointer active:scale-[0.99] group"
+                                   >
+                                     <div className="p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 md:gap-6">
+                                        <div className="flex flex-col">
+                                           <p className="text-blue-500 font-mono text-lg font-bold">
+                                             {new Date(log.timestamp).toLocaleDateString('en-US', { day: 'numeric', weekday: 'short' })}
+                                           </p>
+                                           <p className="text-[10px] text-zinc-500 uppercase tracking-tighter">
+                                             {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                           </p>
+                                        </div>
+                                        <div className="flex gap-6 sm:gap-8 flex-1 justify-center">
+                                           <div className="text-center">
+                                              <p className="text-[10px] text-zinc-500 uppercase mb-1">Sig</p>
+                                              <p className="text-lg font-bold text-white">{stats.signatures}</p>
+                                           </div>
+                                           <div className="text-center">
+                                              <p className="text-[10px] text-zinc-500 uppercase mb-1">Clas</p>
+                                              <p className="text-lg font-bold text-white">{stats.classics}</p>
+                                           </div>
+                                           <div className="text-center">
+                                              <p className="text-[10px] text-zinc-500 uppercase mb-1">Spir</p>
+                                              <p className="text-lg font-bold text-white">{stats.spirits}</p>
+                                           </div>
+                                        </div>
+                                        <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end">
+                                           <div className="text-right">
+                                             <p className="text-[10px] text-zinc-500 uppercase">Total Drinks</p>
+                                             <p className="text-xs font-mono text-zinc-300">{totalDrinks}</p>
+                                           </div>
+                                           <Button 
+                                             variant="ghost" 
+                                             size="icon" 
+                                             onClick={(e) => {
+                                               e.stopPropagation();
+                                               setLogToDelete(log.date);
+                                             }}
+                                             className="text-zinc-700 hover:text-red-500 hover:bg-red-500/10 h-8 w-8"
+                                           >
+                                             <Trash2 className="w-4 h-4" />
+                                           </Button>
+                                        </div>
+                                     </div>
+                                   </Card>
+                                 );
+                               })}
+                             </motion.div>
+                           )}
+                         </AnimatePresence>
+                       </div>
                      );
                    })}
                  </div>
