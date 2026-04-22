@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Search, Calculator, Trash2, ChevronRight, ChevronDown, GlassWater, Info, Package, AlertTriangle, CheckCircle2, User as UserIcon, Bot, Zap, Sparkles, RefreshCcw, Plus, LogOut, LogIn, Cloud, CloudOff, AlarmClock, ArrowLeft, Timer as TimerIcon } from 'lucide-react';
+import { Search, Calculator, Trash2, ChevronRight, ChevronDown, GlassWater, Info, Package, AlertTriangle, CheckCircle2, User as UserIcon, Bot, Zap, Sparkles, RefreshCcw, Plus, LogOut, LogIn, Cloud, CloudOff, AlarmClock, ArrowLeft, Timer as TimerIcon, Settings } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, auth, signIn, logOut, handleFirestoreError } from './lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
@@ -375,6 +375,7 @@ export default function App() {
   const [expandedMonths, setExpandedMonths] = useState<string[]>([]);
   const [selectedBatchRecipe, setSelectedBatchRecipe] = useState<BatchRecipe | null>(null);
   const [batchVolumeInput, setBatchVolumeInput] = useState<string>('');
+  const [editingSpirit, setEditingSpirit] = useState<string | null>(null);
   const [newSpiritName, setNewSpiritName] = useState('');
   const [newSpiritBtlSize, setNewSpiritBtlSize] = useState('750');
   const [newSpiritGlassSize, setNewSpiritGlassSize] = useState('45');
@@ -1152,14 +1153,103 @@ export default function App() {
     if(!newSpiritName) return;
     const bSize = parseInt(newSpiritBtlSize);
     const gSize = parseInt(newSpiritGlassSize);
-    
+    const pos = parseInt(newSpiritPosition) - 1;
+
+    if (editingSpirit) {
+      const oldName = editingSpirit;
+      const newName = newSpiritName;
+
+      // 1. Update Lists
+      const nextGlass45 = spiritsByGlass45.filter(n => n !== oldName);
+      if (gSize === 45) nextGlass45.push(newName);
+      
+      const nextGlass30 = spiritsByGlass30.filter(n => n !== oldName);
+      if (gSize === 30) nextGlass30.push(newName);
+
+      const nextBottle = spiritsByBottle.filter(b => b.name !== oldName);
+      nextBottle.push({ name: newName, ml: bSize });
+
+      // 2. Mapping & Order
+      const oldLabel = spiritMapping[oldName] || oldName;
+      const newLabel = `${newName} ${btlSizeLabel(bSize)}`;
+      const nextMapping = { ...spiritMapping };
+      delete nextMapping[oldName];
+      nextMapping[newName] = newLabel;
+
+      let nextOrder = excelOrder.map(n => n === oldLabel ? newLabel : n);
+      if (!nextOrder.includes(newLabel)) {
+         nextOrder.splice(isNaN(pos) ? nextOrder.length : pos, 0, newLabel);
+      } else if (!isNaN(pos)) {
+         nextOrder = nextOrder.filter(n => n !== newLabel);
+         nextOrder.splice(pos, 0, newLabel);
+      }
+
+      // 3. Recipes & Batch
+      const nextCocktails = cocktails.map(c => ({
+        ...c,
+        name: c.name === oldName ? newName : c.name, // Rename if matches
+        ingredients: c.ingredients.map(i => i.name === oldName ? { ...i, name: newName } : i)
+      }));
+
+      const nextBatchRecipes = batchRecipes.map(r => ({
+        ...r,
+        ingredients: r.ingredients.map(i => i.name === oldName ? { ...i, name: newName } : i)
+      }));
+
+      // 4. Stock
+      const nextStock = stock.map(s => s.ingredientName === oldName ? { ...s, ingredientName: newName } : s);
+
+      if (user) {
+        setIsSyncing(true);
+        try {
+          const batch = writeBatch(db);
+          // Update settings
+          batch.set(doc(db, 'settings', user.uid), {
+            spiritsByGlass45: nextGlass45,
+            spiritsByGlass30: nextGlass30,
+            spiritsByBottle: nextBottle,
+            spiritMapping: nextMapping,
+            excelOrder: nextOrder
+          }, { merge: true });
+          
+          // Cascading updates to cocktails and recipes
+          nextCocktails.forEach(c => {
+             const original = cocktails.find(o => o.id === c.id);
+             if (JSON.stringify(c) !== JSON.stringify(original)) {
+                batch.set(doc(db, 'cocktails', c.id), { ...c, userId: user.uid });
+             }
+          });
+          nextBatchRecipes.forEach(r => {
+             const original = batchRecipes.find(o => o.id === r.id);
+             if (JSON.stringify(r) !== JSON.stringify(original)) {
+                batch.set(doc(db, 'batchRecipes', r.id), { ...r, userId: user.uid });
+             }
+          });
+          await batch.commit();
+        } catch (err) { handleFirestoreError(err, 'write', 'edit-spirit-cascade'); }
+        finally { setIsSyncing(false); }
+      }
+
+      setSpiritsByGlass45(nextGlass45);
+      setSpiritsByGlass30(nextGlass30);
+      setSpiritsByBottle(nextBottle);
+      setSpiritMapping(nextMapping);
+      setExcelOrder(nextOrder);
+      setCocktails(nextCocktails);
+      setBatchRecipes(nextBatchRecipes);
+      setStock(nextStock);
+      setEditingSpirit(null);
+      setIsSpiritDialogOpen(false);
+      return;
+    }
+
+    // ORIGINAL ADD LOGIC
     const nextGlass45 = gSize === 45 ? [...new Set([...spiritsByGlass45, newSpiritName])] : spiritsByGlass45;
     const nextGlass30 = gSize === 30 ? [...new Set([...spiritsByGlass30, newSpiritName])] : spiritsByGlass30;
     const nextBottle = [...spiritsByBottle.filter(b => b.name !== newSpiritName), { name: newSpiritName, ml: bSize }];
     const bLabel = `${newSpiritName} ${btlSizeLabel(bSize)}`;
     const nextMapping = { ...spiritMapping, [newSpiritName]: bLabel };
     
-    const pos = parseInt(newSpiritPosition) - 1;
     const filteredOrder = excelOrder.filter(n => n !== bLabel);
     const nextOrder = [...filteredOrder];
     nextOrder.splice(isNaN(pos) ? nextOrder.length : pos, 0, bLabel);
@@ -1468,7 +1558,7 @@ export default function App() {
                          className="pl-10 bg-zinc-950 border-zinc-800 rounded-xl h-11 md:h-12"
                        />
                      </div>
-                     <Button onClick={() => setIsSpiritDialogOpen(true)} className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 rounded-xl px-6 h-11 md:h-12 gap-2 font-bold text-xs uppercase">
+                     <Button onClick={() => { setEditingSpirit(null); setIsSpiritDialogOpen(true); setSpiritMode('add'); }} className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 rounded-xl px-6 h-11 md:h-12 gap-2 font-bold text-xs uppercase">
                        <Plus className="w-4 h-4" /> ADD OR DELIST SPIRIT
                      </Button>
                   </div>
@@ -1481,8 +1571,30 @@ export default function App() {
                       {sortedStock.map(s => {
                         const size = getBottleSize(s.ingredientName);
                         return (
-                          <div key={s.ingredientName} className="p-3 bg-zinc-950 border border-zinc-800 rounded-xl flex items-center justify-between">
-                             <span className="text-xs font-medium">{getExcelDisplayName(s.ingredientName)}</span>
+                          <div key={s.ingredientName} className="p-3 bg-zinc-950 border border-zinc-800 rounded-xl flex items-center justify-between group">
+                             <div className="flex items-center gap-2">
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  onClick={() => {
+                                     setEditingSpirit(s.ingredientName);
+                                     setNewSpiritName(s.ingredientName);
+                                     setNewSpiritBtlSize(size.toString());
+                                     const isG45 = spiritsByGlass45.includes(s.ingredientName);
+                                     const isG30 = spiritsByGlass30.includes(s.ingredientName);
+                                     setNewSpiritGlassSize(isG45 ? "45" : (isG30 ? "30" : "0"));
+                                     const dispName = getExcelDisplayName(s.ingredientName);
+                                     const currentPos = excelOrder.indexOf(dispName);
+                                     setNewSpiritPosition(currentPos === -1 ? "" : (currentPos + 1).toString());
+                                     setSpiritMode('add');
+                                     setIsSpiritDialogOpen(true);
+                                  }}
+                                  className="h-6 w-6 rounded-md md:opacity-0 group-hover:opacity-100 hover:bg-zinc-800 hover:text-white transition-all p-0"
+                                >
+                                   <Settings className="w-3 h-3 text-zinc-500" />
+                                </Button>
+                                <span className="text-xs font-medium">{getExcelDisplayName(s.ingredientName)}</span>
+                             </div>
                              <div className="flex items-center gap-2">
                                 <Input type="number" step="0.1" value={s.initialMl/size || ''} onChange={e => updateStock(s.ingredientName, (parseFloat(e.target.value)||0)*size)} className="w-20 text-right font-mono text-xs bg-zinc-900 border-zinc-800 h-8" />
                                 <span className="text-[10px] text-zinc-600">BTL</span>
@@ -2312,7 +2424,7 @@ export default function App() {
             {spiritMode === 'add' ? (
               <div className="space-y-6">
                  <div className="space-y-2">
-                   <label className="text-[10px] uppercase text-zinc-500 font-bold tracking-widest">Bottle Name</label>
+                   <label className="text-[10px] uppercase text-zinc-500 font-bold tracking-widest">{editingSpirit ? 'Edit Name' : 'Bottle Name'}</label>
                    <Input value={newSpiritName} onChange={e => setNewSpiritName(e.target.value)} className="bg-zinc-900 border-zinc-800 h-12 rounded-xl" placeholder="e.g. Absolut Vodka" />
                  </div>
                  <div className="grid grid-cols-2 gap-4">
@@ -2333,8 +2445,8 @@ export default function App() {
                    <label className="text-[10px] uppercase text-zinc-500 font-bold tracking-widest">Position in Table (1-{excelOrder.length + 1})</label>
                    <Input type="number" value={newSpiritPosition} onChange={e => setNewSpiritPosition(e.target.value)} className="bg-zinc-900 border-zinc-800 h-12 rounded-xl" placeholder="e.g. 5" />
                  </div>
-                 <Button onClick={handleSaveSpirit} className="w-full h-14 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl">
-                   ADD TO STOCK
+                 <Button onClick={handleSaveSpirit} className={`w-full h-14 ${editingSpirit ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'} text-white font-bold rounded-2xl`}>
+                   {editingSpirit ? 'UPDATE SPIRIT CONFIG' : 'ADD TO STOCK'}
                  </Button>
               </div>
             ) : (
