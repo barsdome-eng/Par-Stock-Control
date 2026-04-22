@@ -1,0 +1,1395 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { Search, Calculator, Trash2, ChevronRight, GlassWater, Info, Package, AlertTriangle, CheckCircle2, User, Bot, Zap, Sparkles, RefreshCcw, Plus } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Cocktail, UsageRecord, StockLevel, DailyLog, Ingredient } from './types';
+import { cocktails as initialCocktails, spiritsByGlass45 as initialGlass45, spiritsByGlass30 as initialGlass30, spiritsByBottle as initialBottle } from './data/cocktails';
+
+const ML_TO_OZ = 1 / 30;
+
+const initialExcelOrder = [
+  "Roku Gin 700 ml",
+  "Bombay Sapphire Gin 750 ml",
+  "Tanqueray Gin 750 ml",
+  "NO.3 Gin 700 ml",
+  "Hendrick's Gin 700 ml",
+  "Tanqueray No.Ten Gin 750 ml",
+  "Hoxton Tropical Gin 700 ml",
+  "Canario Cachaca 1 L",
+  "Matusalem Gran Reserva 23 years 700 ml",
+  "Zacapa Centanario Rum 23 years 750 ml",
+  "Bacardi Gran Reserva Diez 10 Years 700 ml",
+  "Bacardi Carta Blanca 750 ml",
+  "Bacardi Ocho 8 Years 700 ml",
+  "Kraken Spiced Rum 700 ml",
+  "Ciroc Vodka 750 ml",
+  "Grey Goose Original 750 ml",
+  "Stolichnaya Elit Vodka 700 ml",
+  "Don Julio 1942 Tequila 750 ml",
+  "Patron Silver Tequila 750 ml",
+  "Patron Anejo Tequila 750 ml",
+  "Patron Reposado Tequila 750 ml",
+  "Patron El Alto Tequila 750 ml",
+  "1800 Cristalino Anejo 750 ml",
+  "Patron EL Cielo Tequila 700 ml",
+  "Montelobos Mezcal Tequila 700 ml",
+  "La Luna Mezcal 1 L",
+  "Clase Azul Gold Tequila 750 ml",
+  "Clase Azul Reposado Tequila 750 ml",
+  "Clase Azul Anejo Tequila 750 ml",
+  "Aperol 700 ml",
+  "Campari 750 ml",
+  "Campari Cask Tales 1000 ml",
+  "Martini Rosso 1 L",
+  "Martini Bianco 1 L",
+  "Sacred English Spiced Vermouth 750 ml",
+  "Sacred Rosehip Cup 750 ml",
+  "Pimm No.1 700 ml",
+  "Fernet Branca 1 L",
+  "Cinzano Rosso 1 L 1757",
+  "Cinzano 1757 Dry 1 L",
+  "Cocchi Di Torino Extra Dry Vermouth 500 ml",
+  "Tio Pepe Sherry 750 ml",
+  "Dow's Port Wine Fine Ruby 750 ml",
+  "Dow's Port Wine Fine Tawny 750 ml",
+  "J/W Gold Reserve 750 ml",
+  "J/W Blue Label 750 ml",
+  "J/W Blue Label King George The V 750 ml",
+  "Dewar's 12 Years 750 ml",
+  "Dewar's 15 Years 1000 ml",
+  "Dewar's 18 Years 750 ml",
+  "Dewar's Double Double 21 Years 750 ml",
+  "Lagavalin 16 years Whisky 700 ml",
+  "Dewar's Double Double 27 Years 500 ml",
+  "Aberfeldy 21 Years 750 ml",
+  "Glenfiddich 18 Years 700 ml",
+  "Glenfiddich 21 Years 700 ml",
+  "Macallan 18 Years Sherry Oak Cask 700 ml",
+  "Macallan Double Cask 18 Years 700 ml",
+  "Macallan Rare Cask 700 ml",
+  "Talisker whisky 10 year 700 ml",
+  "Bulleit Rye Whisky 700 ml",
+  "Bulleit Bourbon Whisky 700 ml",
+  "Wild Turkey Aged 8 years Bourbon 700 ml",
+  "Wild Turkey Rye 700 ml",
+  "Bushmil Black Bush Irish Whiskey 700 ml",
+  "Henessy VSOP 700 ml",
+  "Henessy XO 700 ml",
+  "Remy VSOP 700 ml",
+  "Remy X.O. 700 ml",
+  "Emishiki Sensation Sake 1.5 L",
+  "Amaretto \"Disaronno\" 700 ml",
+  "Amaro Averna 700 ml",
+  "Bergamotto Fantastico 700 ml",
+  "Mr Three and Bros Ginger Falernum 500 ml",
+  "Baileys Cream 700 ml",
+  "Benedictine DOM 700 ml",
+  "Demonio De Los Andes Pisco 700 ml",
+  "Cointreau 700 ml",
+  "Blue Curacao 700 ml",
+  "Creme De Mure 700 ml",
+  "Creme De Cassis \"Giffard\" 700 ml",
+  "Creme De Menthe Green \"Hiram\" 750 ml",
+  "Creme De Cacao White \"BOLS\" 700 ml",
+  "Grand Marnier 700 ml",
+  "Drambuie 750 ml",
+  "Frangelico 700 ml",
+  "Galliano Vanilla Liqueur 700 ml",
+  "Jagermeister Herb Liqueur 700 ml",
+  "Strega Grancaffe 700 ml",
+  "Lillet Blanc 750 ml",
+  "Lustau Sherry Palo Cortado Peninsula 375 ml",
+  "Luxardo Limoncello 750 ml",
+  "Lychee Liqueur Kwai Feh 700 ml",
+  "Peachtree (The Original) 700 ml",
+  "Sambuca \"De Kuyper\" 750 ml",
+  "Montenegro Amaro 750 ml",
+  "St.German 700 ml",
+  "Apricot Brandy 700 ml",
+  "Midori Melon Liqueur 700 ml",
+  "Creme De Violettes Massenez 700 ml",
+  "Cherry Brandy \"De Kuyper\" 750 ml",
+  "Cherry Heering 700 ml",
+  "Dry Orange \"De Kuyper\" 700 ml",
+  "Ayala Brut Majeur 750 ml",
+  "Masottina Calmaggiore Prosecco 750 ml",
+];
+
+const initialMapping: { [key: string]: string } = {
+  "Roku": "Roku Gin 700 ml",
+  "Bombay Sapphire": "Bombay Sapphire Gin 750 ml",
+  "Tanqueray": "Tanqueray Gin 750 ml",
+  "No.3": "NO.3 Gin 700 ml",
+  "Hendricks": "Hendrick's Gin 700 ml",
+  "Tanqueray 10": "Tanqueray No.Ten Gin 750 ml",
+  "Hoxton Gin": "Hoxton Tropical Gin 700 ml",
+  "Canario Cachaca": "Canario Cachaca 1 L",
+  "Matusalem 23": "Matusalem Gran Reserva 23 years 700 ml",
+  "Zacapa 23": "Zacapa Centanario Rum 23 years 750 ml",
+  "Bacardi Diez": "Bacardi Gran Reserva Diez 10 Years 700 ml",
+  "Bacardi White": "Bacardi Carta Blanca 750 ml",
+  "Bacardi Ocho": "Bacardi Ocho 8 Years 700 ml",
+  "Ciroc": "Ciroc Vodka 750 ml",
+  "Grey Goose": "Grey Goose Original 750 ml",
+  "Stolichnaya Elit": "Stolichnaya Elit Vodka 700 ml",
+  "Don Julio 1942": "Don Julio 1942 Tequila 750 ml",
+  "Patron Silver": "Patron Silver Tequila 750 ml",
+  "Patron Anejo": "Patron Anejo Tequila 750 ml",
+  "Patron Reposado": "Patron Reposado Tequila 750 ml",
+  "Patron El Alto": "Patron El Alto Tequila 750 ml",
+  "1800 Cristalino Anejo": "1800 Cristalino Anejo 750 ml",
+  "Patron El Cielo": "Patron EL Cielo Tequila 700 ml",
+  "Montelobos Espadin": "Montelobos Mezcal Tequila 700 ml",
+  "La Luna Mezcal": "La Luna Mezcal 1 L",
+  "Clase Azul Gold": "Clase Azul Gold Tequila 750 ml",
+  "Clase Azul Reposado": "Clase Azul Reposado Tequila 750 ml",
+  "Clase Azul Anejo": "Clase Azul Anejo Tequila 750 ml",
+  "Aperol": "Aperol 700 ml",
+  "Campari": "Campari 750 ml",
+  "Campari Cask Tales": "Campari Cask Tales 1000 ml",
+  "Martini Rosso": "Martini Rosso 1 L",
+  "Martini Bianco": "Martini Bianco 1 L",
+  "Sacred Spiced Vermouth": "Sacred English Spiced Vermouth 750 ml",
+  "Sacred Rosehip Cup": "Sacred Rosehip Cup 750 ml",
+  "Pimms No.1": "Pimm No.1 700 ml",
+  "Fernet Branca": "Fernet Branca 1 L",
+  "Cinzano 1757 Rosso": "Cinzano Rosso 1 L 1757",
+  "Cinzano 1757 Dry": "Cinzano 1757 Dry 1 L",
+  "Cocchi Extra Dry": "Cocchi Di Torino Extra Dry Vermouth 500 ml",
+  "Tio Pepe Sherry": "Tio Pepe Sherry 750 ml",
+  "Dow's Ruby": "Dow's Port Wine Fine Ruby 750 ml",
+  "Dow's Tawny": "Dow's Port Wine Fine Tawny 750 ml",
+  "Johnnie Walker Gold": "J/W Gold Reserve 750 ml",
+  "Johnnie Walker Blue Label": "J/W Blue Label 750 ml",
+  "Johnnie Walker King George": "J/W Blue Label King George The V 750 ml",
+  "Dewars 12": "Dewar's 12 Years 750 ml",
+  "Dewars 15": "Dewar's 15 Years 1000 ml",
+  "Dewars 18": "Dewar's 18 Years 750 ml",
+  "Dewars Double Double 21": "Dewar's Double Double 21 Years 750 ml",
+  "Lagavulin 16": "Lagavalin 16 years Whisky 700 ml",
+  "Dewars Double Double 27 Years": "Dewar's Double Double 27 Years 500 ml",
+  "Aberfeldy 21": "Aberfeldy 21 Years 750 ml",
+  "Glenfiddich 18": "Glenfiddich 18 Years 700 ml",
+  "Glenfiddich 21": "Glenfiddich 21 Years 700 ml",
+  "Macallan 18 Sherry Oak": "Macallan 18 Years Sherry Oak Cask 700 ml",
+  "Macallan Sherry Oak 18": "Macallan 18 Years Sherry Oak Cask 700 ml",
+  "Macallan Double Cask 18": "Macallan Double Cask 18 Years 700 ml",
+  "Macallan Rare Cask": "Macallan Rare Cask 700 ml",
+  "Talisker 10": "Talisker whisky 10 year 700 ml",
+  "Bulleit Rye": "Bulleit Rye Whisky 700 ml",
+  "Bulleit Bourbon": "Bulleit Bourbon Whisky 700 ml",
+  "Wild Turkey Bourbon": "Wild Turkey Aged 8 years Bourbon 700 ml",
+  "Wild Turkey Rye": "Wild Turkey Rye 700 ml",
+  "Bushmills Black": "Bushmil Black Bush Irish Whiskey 700 ml",
+  "Hennessy VSOP": "Henessy VSOP 700 ml",
+  "Hennessy XO": "Henessy XO 700 ml",
+  "Remy Martin VSOP": "Remy VSOP 700 ml",
+  "Remy Martin XO": "Remy X.O. 700 ml",
+  "Disaronno Amaretto": "Amaretto \"Disaronno\" 700 ml",
+  "Amaro Averna": "Amaro Averna 700 ml",
+  "Bergamotto Fantastico Bergamot Liqueur": "Bergamotto Fantastico 700 ml",
+  "Ginger Falernum": "Mr Three and Bros Ginger Falernum 500 ml",
+  "Baileys": "Baileys Cream 700 ml",
+  "DOM Benedictine": "Benedictine DOM 700 ml",
+  "Demonio Los Andes Pisco": "Demonio De Los Andes Pisco 700 ml",
+  "Cointreau": "Cointreau 700 ml",
+  "Blue Curacao": "Blue Curacao 700 ml",
+  "Creme De Mure": "Creme De Mure 700 ml",
+  "Creme de Cassis": "Creme De Cassis \"Giffard\" 700 ml",
+  "Creme de Menthe Green": "Creme De Menthe Green \"Hiram\" 750 ml",
+  "Creme de Cacao White": "Creme De Cacao White \"BOLS\" 700 ml",
+  "Grand Marnier": "Grand Marnier 700 ml",
+  "Drambuie": "Drambuie 750 ml",
+  "Frangelico": "Frangelico 700 ml",
+  "Galliano Vanilla Liqueur": "Galliano Vanilla Liqueur 700 ml",
+  "Jagermeister": "Jagermeister Herb Liqueur 700 ml",
+  "Strega Coffee Liqueur": "Strega Grancaffe 700 ml",
+  "Lillet Blanc": "Lillet Blanc 750 ml",
+  "Lustau Sherry": "Lustau Sherry Palo Cortado Peninsula 375 ml",
+  "Lustau Sherry Palo Cortado Peninsula": "Lustau Sherry Palo Cortado Peninsula 375 ml",
+  "Limoncello": "Luxardo Limoncello 750 ml",
+  "Kwai Feh Lychee Liqueur": "Lychee Liqueur Kwai Feh 700 ml",
+  "Peachtree Peach Liqueur": "Peachtree (The Original) 700 ml",
+  "Sambuca": "Sambuca \"De Kuyper\" 750 ml",
+  "Montenegro Amaro": "Montenegro Amaro 750 ml",
+  "St. Germain": "St.German 700 ml",
+  "Apricot Brandy": "Apricot Brandy 700 ml",
+  "Midori": "Midori Melon Liqueur 700 ml",
+  "Creme de Violette": "Creme De Violettes Massenez 700 ml",
+  "Cherry Brandy": "Cherry Brandy \"De Kuyper\" 750 ml",
+  "Cherry Heering": "Cherry Heering 700 ml",
+  "Dry Orange": "Dry Orange \"De Kuyper\" 700 ml",
+  "Ayala Brut": "Ayala Brut Majeur 750 ml",
+  "Masottina Prosecco": "Masottina Calmaggiore Prosecco 750 ml",
+  "Palo Cortado Sherry": "Lustau Sherry Palo Cortado Peninsula 375 ml",
+  "Dows Tawny": "Dow's Port Wine Fine Tawny 750 ml",
+  "Dows Ruby": "Dow's Port Wine Fine Ruby 750 ml",
+  "Dry Vermouth": "Cocchi Di Torino Extra Dry Vermouth 500 ml",
+  "Kraken Spiced Rum": "Kraken Spiced Rum 700 ml",
+  "Emishiki Sensation Sake": "Emishiki Sensation Sake 1.5 L",
+};
+
+export default function App() {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<'All' | 'Cocktail' | 'Spirit by Glass' | 'Spirit by Bottle'>('All');
+  const [activeTab, setActiveTab] = useState('par-cutting');
+  
+  const [cocktails, setCocktails] = useState<Cocktail[]>(() => {
+    const cached = localStorage.getItem('skybar_cocktails_v1');
+    return cached ? JSON.parse(cached) : initialCocktails;
+  });
+
+  const [spiritsByGlass45, setSpiritsByGlass45] = useState<string[]>(() => {
+    const cached = localStorage.getItem('skybar_glass45_v1');
+    return cached ? JSON.parse(cached) : initialGlass45;
+  });
+
+  const [spiritsByGlass30, setSpiritsByGlass30] = useState<string[]>(() => {
+    const cached = localStorage.getItem('skybar_glass30_v1');
+    return cached ? JSON.parse(cached) : initialGlass30;
+  });
+
+  const [spiritsByBottle, setSpiritsByBottle] = useState<{name: string, ml: number}[]>(() => {
+    const cached = localStorage.getItem('skybar_bottle_v1');
+    return cached ? JSON.parse(cached) : initialBottle;
+  });
+
+  const [excelOrder, setExcelOrder] = useState<string[]>(() => {
+    const cached = localStorage.getItem('skybar_excelOrder_v1');
+    return cached ? JSON.parse(cached) : initialExcelOrder;
+  });
+
+  const [spiritMapping, setSpiritMapping] = useState<{ [key: string]: string }>(() => {
+    const cached = localStorage.getItem('skybar_mapping_v1');
+    return cached ? JSON.parse(cached) : initialMapping;
+  });
+
+  // Generated items
+  const fullCocktailList = useMemo(() => {
+    const glass45 = spiritsByGlass45.map(name => ({
+      id: `glass-45-${name.toLowerCase().replace(/\s+/g, '-')}`,
+      name: `${name} (45ml)`,
+      category: 'Spirit by Glass' as const,
+      ingredients: [{ name, ml: 45, isAlcohol: true }]
+    }));
+
+    const glass30 = spiritsByGlass30.map(name => ({
+      id: `glass-30-${name.toLowerCase().replace(/\s+/g, '-')}`,
+      name: `${name} (30ml)`,
+      category: 'Spirit by Glass' as const,
+      ingredients: [{ name, ml: 30, isAlcohol: true }]
+    }));
+
+    const btl = spiritsByBottle.map(item => ({
+      id: `btl-${item.name.toLowerCase().replace(/\s+/g, '-')}`,
+      name: `${item.name} (${item.ml}ml Btl)`,
+      category: 'Spirit by Bottle' as const,
+      ingredients: [{ name: item.name, ml: item.ml, isAlcohol: true }]
+    }));
+
+    return [...cocktails, ...glass45, ...glass30, ...btl].sort((a, b) => a.name.localeCompare(b.name));
+  }, [cocktails, spiritsByGlass45, spiritsByGlass30, spiritsByBottle]);
+
+  const [quantityInput, setQuantityInput] = useState('1');
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const cocktailRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({});
+  const quantityInputRef = useRef<HTMLInputElement>(null);
+
+  const [isRecipeDialogOpen, setIsRecipeDialogOpen] = useState(false);
+  const [editingRecipe, setEditingRecipe] = useState<Cocktail | null>(null);
+  const [isSpiritDialogOpen, setIsSpiritDialogOpen] = useState(false);
+  const [spiritMode, setSpiritMode] = useState<'add' | 'remove'>('add');
+  const [newSpiritName, setNewSpiritName] = useState('');
+  const [newSpiritBtlSize, setNewSpiritBtlSize] = useState('750');
+  const [newSpiritGlassSize, setNewSpiritGlassSize] = useState('45');
+  const [newSpiritPosition, setNewSpiritPosition] = useState('');
+  const [spiritsToRemove, setSpiritsToRemove] = useState<string[]>([]);
+  const [recipeName, setRecipeName] = useState('');
+  const [recipeIngredients, setRecipeIngredients] = useState<Ingredient[]>([]);
+  const [newIngName, setNewIngName] = useState('');
+  const [newIngMl, setNewIngMl] = useState('');
+
+  const allIngredients = useMemo(() => {
+    const displayToInternal = new Map<string, string>();
+    const allInternalNames = new Set<string>();
+    
+    fullCocktailList.forEach(c => c.ingredients.forEach(i => {
+      if (i.isAlcohol) allInternalNames.add(i.name);
+    }));
+    Object.keys(spiritMapping).forEach(k => allInternalNames.add(k));
+
+    allInternalNames.forEach(internalName => {
+      const displayName = spiritMapping[internalName] || internalName;
+      if (!displayToInternal.has(displayName)) {
+        displayToInternal.set(displayName, internalName);
+      }
+    });
+
+    return Array.from(displayToInternal.values());
+  }, [fullCocktailList, spiritMapping]);
+
+  const getExcelDisplayName = (internalName: string) => {
+    return spiritMapping[internalName] || internalName;
+  };
+
+  const getExcelSortIndex = (internalName: string) => {
+    const excelName = getExcelDisplayName(internalName);
+    const index = excelOrder.indexOf(excelName);
+    return index === -1 ? 999 : index;
+  };
+
+  const [usage, setUsage] = useState<UsageRecord[]>([]);
+  
+  const [stock, setStock] = useState<StockLevel[]>(() => {
+    const cached = localStorage.getItem('skybar_stock_cache');
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        const cacheMap = new Map(parsed.map((s: StockLevel) => [s.ingredientName, s.initialMl]));
+        // We initialize with what's in local storage, but mapped to our dynamic ingredient list
+        return allIngredients.map(name => ({
+          ingredientName: name,
+          initialMl: cacheMap.get(name) || 0
+        }));
+      } catch (e) {
+        console.error("Cache parse error", e);
+      }
+    }
+    return allIngredients.map(name => ({ ingredientName: name, initialMl: 0 }));
+  });
+
+  // Sync missing items to stock if allIngredients changes
+  useEffect(() => {
+    setStock(prev => {
+      const currentNames = new Set(prev.map(s => s.ingredientName));
+      const hasChanged = allIngredients.some(name => !currentNames.has(name)) || prev.some(s => !allIngredients.includes(s.ingredientName));
+      
+      if (hasChanged) {
+        return allIngredients.map(name => {
+          const existing = prev.find(s => s.ingredientName === name);
+          return existing ? existing : { ingredientName: name, initialMl: 0 };
+        });
+      }
+      return prev;
+    });
+  }, [allIngredients]);
+
+  // Persist schema-affecting states
+  useEffect(() => localStorage.setItem('skybar_cocktails_v1', JSON.stringify(cocktails)), [cocktails]);
+  useEffect(() => localStorage.setItem('skybar_glass45_v1', JSON.stringify(spiritsByGlass45)), [spiritsByGlass45]);
+  useEffect(() => localStorage.setItem('skybar_glass30_v1', JSON.stringify(spiritsByGlass30)), [spiritsByGlass30]);
+  useEffect(() => localStorage.setItem('skybar_bottle_v1', JSON.stringify(spiritsByBottle)), [spiritsByBottle]);
+  useEffect(() => localStorage.setItem('skybar_excelOrder_v1', JSON.stringify(excelOrder)), [excelOrder]);
+  useEffect(() => localStorage.setItem('skybar_mapping_v1', JSON.stringify(spiritMapping)), [spiritMapping]);
+
+  // Keep tracking logs in local storage as well
+  const [logs, setLogs] = useState<DailyLog[]>(() => {
+    const cached = localStorage.getItem('skybar_logs_cache');
+    return cached ? JSON.parse(cached) : [];
+  });
+
+  const APP_VERSION = "1.0.0";
+
+  // Auto-save stock to local storage on change
+  useEffect(() => {
+    localStorage.setItem('skybar_stock_cache', JSON.stringify(stock));
+  }, [stock]);
+
+  // Auto-save logs to local storage on change
+  useEffect(() => {
+    localStorage.setItem('skybar_logs_cache', JSON.stringify(logs));
+  }, [logs]);
+
+  const [selectedCocktail, setSelectedCocktail] = useState<Cocktail | null>(null);
+  const [selectedLog, setSelectedLog] = useState<DailyLog | null>(null);
+  const [logToDelete, setLogToDelete] = useState<string | null>(null);
+
+  // Clean up logs older than 30 days
+  useEffect(() => {
+    const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+    setLogs(prev => {
+      const filtered = prev.filter(log => log.timestamp > thirtyDaysAgo);
+      if (filtered.length !== prev.length) {
+        return filtered;
+      }
+      return prev;
+    });
+  }, []);
+
+  // Handle auto-focus and selection for quantity input
+  useEffect(() => {
+    if (selectedCocktail) {
+      // Small timeout to ensure dialog is rendered and focus management doesn't fight back
+      const timer = setTimeout(() => {
+        quantityInputRef.current?.focus();
+        quantityInputRef.current?.select();
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [selectedCocktail]);
+
+  const SIGNATURE_COCKTAILS = ['Dome266', 'Dome Colada', 'Sukhumvit After Dark', 'Khaosan Regret', 'Jodd Fair Gluttony', 'Sunset at Chao Phraya', 'BTS Highball', 'Hotel Lobby Drams'];
+
+  const monthlySummary = useMemo(() => {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    const monthlyLogs = logs.filter(log => {
+      const logDate = new Date(log.date);
+      return logDate.getMonth() === currentMonth && logDate.getFullYear() === currentYear;
+    });
+
+    const itemTallies: { [id: string]: number } = {};
+    let signatures = 0;
+    let classics = 0;
+    let spirits = 0;
+
+    monthlyLogs.forEach(log => {
+      log.usage.forEach(record => {
+        itemTallies[record.cocktailId] = (itemTallies[record.cocktailId] || 0) + record.quantity;
+        
+        const item = fullCocktailList.find(c => c.id === record.cocktailId);
+        if (item) {
+          if (item.category === 'Cocktail') {
+            if (SIGNATURE_COCKTAILS.includes(item.name)) signatures += record.quantity;
+            else classics += record.quantity;
+          } else {
+            spirits += record.quantity;
+          }
+        }
+      });
+    });
+
+    let topSellerId = '';
+    let maxQty = 0;
+    Object.entries(itemTallies).forEach(([id, qty]) => {
+      if (qty > maxQty) {
+        maxQty = qty;
+        topSellerId = id;
+      }
+    });
+
+    const topSeller = fullCocktailList.find(c => c.id === topSellerId);
+
+    return { signatures, classics, spirits, topSeller, topSellerQty: maxQty };
+  }, [logs, fullCocktailList]);
+
+  const getCategoryStats = (usageRecords: UsageRecord[]) => {
+    let signatures = 0, classics = 0, spirits = 0;
+    usageRecords.forEach(r => {
+      const item = fullCocktailList.find(c => c.id === r.cocktailId);
+      if (item) {
+        if (item.category === 'Cocktail') {
+          if (SIGNATURE_COCKTAILS.includes(item.name)) signatures += r.quantity;
+          else classics += r.quantity;
+        } else spirits += r.quantity;
+      }
+    });
+    return { signatures, classics, spirits };
+  };
+
+  const bottleSizeMap = useMemo(() => {
+    const map: { [name: string]: number } = {};
+    fullCocktailList.forEach(item => {
+      if (item.category === 'Spirit by Bottle') {
+        map[item.ingredients[0].name] = item.ingredients[0].ml;
+      }
+    });
+    return map;
+  }, [fullCocktailList]);
+
+  const getBottleSize = (name: string) => {
+    if (bottleSizeMap[name]) return bottleSizeMap[name];
+    const ln = getExcelDisplayName(name).toLowerCase();
+    if (ln.includes(' 1 l')) return 1000;
+    if (ln.includes(' 1.5 l')) return 1500;
+    if (ln.includes('750 ml')) return 750;
+    if (ln.includes('700 ml')) return 700;
+    if (ln.includes('500 ml')) return 500;
+    if (ln.includes('375 ml')) return 375;
+    return 750;
+  };
+
+  const last4DaysVelocity = useMemo(() => {
+    const fourDaysAgo = Date.now() - (4 * 24 * 60 * 60 * 1000);
+    const recentLogs = logs.filter(log => log.timestamp > fourDaysAgo);
+    const velocity: { [name: string]: number } = {};
+    recentLogs.forEach(log => {
+      log.usage.forEach(record => {
+        const item = fullCocktailList.find(c => c.id === record.cocktailId);
+        item?.ingredients.forEach(ing => {
+          if (ing.isAlcohol) {
+            velocity[ing.name] = (velocity[ing.name] || 0) + (ing.ml * record.quantity) / 4;
+          }
+        });
+      });
+    });
+    return velocity;
+  }, [logs, fullCocktailList]);
+
+  const beverageOrderAnalysis = useMemo(() => {
+    const fourDaysAgo = Date.now() - (4 * 24 * 60 * 60 * 1000);
+    const recentLogs = logs.filter(log => log.timestamp > fourDaysAgo);
+    
+    const drinkTallies: { [id: string]: number } = {};
+    const ingredientDepletion: { [name: string]: number } = {};
+
+    recentLogs.forEach(log => {
+      log.usage.forEach(record => {
+        drinkTallies[record.cocktailId] = (drinkTallies[record.cocktailId] || 0) + record.quantity;
+        const item = fullCocktailList.find(c => c.id === record.cocktailId);
+        item?.ingredients.forEach(ing => {
+          if (ing.isAlcohol) {
+            ingredientDepletion[ing.name] = (ingredientDepletion[ing.name] || 0) + (ing.ml * record.quantity);
+          }
+        });
+      });
+    });
+
+    const topDrinks = Object.entries(drinkTallies)
+      .map(([id, qty]) => ({
+        item: fullCocktailList.find(c => c.id === id),
+        quantity: qty
+      }))
+      .filter(d => d.item)
+      .sort((a, b) => b.quantity - a.quantity)
+      .slice(0, 8);
+
+    const sortedDepletion = Object.entries(ingredientDepletion)
+      .map(([name, totalMl]) => {
+        const avgDailyMl = totalMl / 4;
+        const bSize = getBottleSize(name);
+        const bottlesNeeded = totalMl / bSize;
+        return { name, totalMl, avgDailyMl, bottlesNeeded, bSize };
+      })
+      .sort((a, b) => b.totalMl - a.totalMl);
+
+    return { topDrinks, sortedDepletion };
+  }, [logs, fullCocktailList]);
+
+  const updateStock = (name: string, ml: number) => {
+    setStock(prev => prev.map(s => s.ingredientName === name ? { ...s, initialMl: ml } : s));
+  };
+
+  const filteredItems = useMemo(() => {
+    return fullCocktailList.filter(c => {
+      const ms = c.name.toLowerCase().includes(searchQuery.toLowerCase());
+      const mc = selectedCategory === 'All' || c.category === selectedCategory;
+      return ms && mc;
+    });
+  }, [searchQuery, selectedCategory, fullCocktailList]);
+
+  const handleAddUsage = () => {
+    if (selectedCocktail && parseInt(quantityInput) > 0) {
+      setUsage(prev => [...prev, { cocktailId: selectedCocktail.id, quantity: parseInt(quantityInput), timestamp: Date.now() }]);
+      setSelectedCocktail(null);
+      setQuantityInput('1');
+    }
+  };
+
+  const commitToLog = () => {
+    if (usage.length === 0) return;
+    const existing = logs.find(l => l.date === selectedDate);
+    const finalLog = existing ? { ...existing, usage: [...existing.usage, ...usage], timestamp: Date.now() } : { date: selectedDate, usage: [...usage], timestamp: Date.now() };
+    
+    setLogs(prev => {
+      const otherLogs = prev.filter(l => l.date !== selectedDate);
+      return [finalLog, ...otherLogs].sort((a, b) => b.timestamp - a.timestamp);
+    });
+
+    setUsage([]);
+    alert("Record committed to local history.");
+  };
+
+  const totalUsageByIngredient = useMemo(() => {
+    const totals: { [name: string]: number } = {};
+    usage.forEach(r => {
+      const item = fullCocktailList.find(c => c.id === r.cocktailId);
+      item?.ingredients.forEach(ing => { if (ing.isAlcohol) totals[ing.name] = (totals[ing.name] || 0) + ing.ml * r.quantity; });
+    });
+    return totals;
+  }, [usage, fullCocktailList]);
+
+  const stockStatus = useMemo(() => {
+    return stock.map(s => {
+      const used = totalUsageByIngredient[s.ingredientName] || 0;
+      const remaining = s.initialMl - used;
+      const btlS = getBottleSize(s.ingredientName);
+      const isLow = remaining < (btlS * 1.5);
+      return { ...s, used, remaining, percentage: s.initialMl > 0 ? (remaining/s.initialMl)*100 : 0, isLow };
+    });
+  }, [stock, totalUsageByIngredient]);
+
+  const sortedStockStatus = useMemo(() => {
+    return [...stockStatus].sort((a, b) => getExcelSortIndex(a.ingredientName) - getExcelSortIndex(b.ingredientName));
+  }, [stockStatus, excelOrder]);
+
+  const sortedStock = useMemo(() => {
+    return [...stock].sort((a, b) => getExcelSortIndex(a.ingredientName) - getExcelSortIndex(b.ingredientName));
+  }, [stock, excelOrder]);
+
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+  const scrollToLetter = (letter: string) => {
+    const firstItem = filteredItems.find(item => item.name.toUpperCase().startsWith(letter));
+    if (firstItem && cocktailRefs.current[firstItem.id]) {
+      cocktailRefs.current[firstItem.id]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  const handleSaveRecipe = () => {
+    if(!recipeName || recipeIngredients.length === 0) return;
+    const newRecipe: Cocktail = {
+      id: editingRecipe?.id || recipeName.toLowerCase().replace(/\s+/g, '-'),
+      name: recipeName,
+      category: 'Cocktail',
+      ingredients: recipeIngredients
+    };
+    if(editingRecipe) setCocktails(prev => prev.map(c => c.id === editingRecipe.id ? newRecipe : c));
+    else setCocktails(prev => [...prev, newRecipe]);
+    setIsRecipeDialogOpen(false);
+  };
+
+  const handleSaveSpirit = () => {
+    if(!newSpiritName) return;
+    const bSize = parseInt(newSpiritBtlSize);
+    const gSize = parseInt(newSpiritGlassSize);
+    
+    // Update spirit lists
+    if(gSize === 45) setSpiritsByGlass45(prev => [...new Set([...prev, newSpiritName])]);
+    if(gSize === 30) setSpiritsByGlass30(prev => [...new Set([...prev, newSpiritName])]);
+    setSpiritsByBottle(prev => [...prev.filter(b => b.name !== newSpiritName), { name: newSpiritName, ml: bSize }]);
+
+    // Update Mapping
+    setSpiritMapping(prev => ({ ...prev, [newSpiritName]: `${newSpiritName} ${btlSizeLabel(bSize)}` }));
+
+    // Update Order
+    const bLabel = `${newSpiritName} ${btlSizeLabel(bSize)}`;
+    const pos = parseInt(newSpiritPosition) - 1;
+    setExcelOrder(prev => {
+      const filtered = prev.filter(n => n !== bLabel);
+      const res = [...filtered];
+      res.splice(isNaN(pos) ? res.length : pos, 0, bLabel);
+      return res;
+    });
+
+    setIsSpiritDialogOpen(false);
+  };
+
+  const btlSizeLabel = (ml: number) => {
+    if(ml >= 1000) return `${ml/1000} L`;
+    return `${ml} ml`;
+  };
+
+  const handleRemoveSpirits = () => {
+    if(spiritsToRemove.length === 0) return;
+    setSpiritsByGlass45(prev => prev.filter(s => !spiritsToRemove.includes(s)));
+    setSpiritsByGlass30(prev => prev.filter(s => !spiritsToRemove.includes(s)));
+    setSpiritsByBottle(prev => prev.filter(s => !spiritsToRemove.includes(s.name)));
+    setCocktails(prev => prev.filter(c => !spiritsToRemove.includes(c.name)));
+    setSpiritsToRemove([]);
+    setIsSpiritDialogOpen(false);
+  };
+
+  return (
+    <div className="flex h-screen bg-black text-white font-sans overflow-hidden">
+      <aside className="w-16 border-r border-zinc-800 flex flex-col items-center py-8 gap-8">
+         <Package className="text-blue-500 w-8 h-8" />
+      </aside>
+
+      <div className="flex-1 flex flex-col h-full overflow-hidden">
+        <header className="p-6 border-b border-zinc-800 flex justify-between items-center bg-zinc-950">
+          <div>
+            <h1 className="text-2xl font-light tracking-widest text-white uppercase italic">PAR <span className="text-blue-500 font-bold not-italic">STOCK</span> CONTROL</h1>
+            <p className="text-[10px] text-zinc-500 uppercase tracking-tighter">Inventory Management Solution</p>
+          </div>
+          <div className="flex items-center gap-4">
+               <div className="flex items-center gap-2 px-3 py-1 bg-zinc-900 border border-zinc-800 rounded-full">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                  <span className="text-[10px] font-mono">LOCAL STORAGE ACTIVE</span>
+               </div>
+          </div>
+        </header>
+
+        <main className="p-6 overflow-y-auto max-w-7xl mx-auto w-full h-full">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+            <TabsList className="bg-zinc-900 p-1 rounded-xl">
+              <TabsTrigger value="par-cutting" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">PAR CUTTING</TabsTrigger>
+              <TabsTrigger value="stock" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">STOCK</TabsTrigger>
+              <TabsTrigger value="recipe-data" className="data-[state=active]:bg-amber-600 data-[state=active]:text-white uppercase">Recipe Data</TabsTrigger>
+              <TabsTrigger value="summary" className="data-[state=active]:bg-indigo-600 data-[state=active]:text-white">HISTORY</TabsTrigger>
+              <TabsTrigger value="beverage-order" className="data-[state=active]:bg-rose-600 data-[state=active]:text-white uppercase">Beverage Order</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="par-cutting" className="grid grid-cols-1 lg:grid-cols-3 gap-6 m-0">
+               <div className="lg:col-span-2 space-y-6">
+                  <Card className="bg-zinc-900 border-zinc-800 p-6">
+                    <div className="flex justify-between items-center mb-6">
+                      <h2 className="text-lg font-bold uppercase tracking-tight">Daily Sales Entry</h2>
+                      <div className="flex gap-2">
+                        <Input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="w-40 bg-zinc-800 border-zinc-700 text-white" />
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-4 items-center mb-6 overflow-x-auto pb-2 scrollbar-none">
+                       {['All', 'Cocktail', 'Spirit by Glass', 'Spirit by Bottle'].map(c => (
+                         <Button key={c} variant={selectedCategory === c ? 'default' : 'outline'} onClick={() => setSelectedCategory(c as any)} className="rounded-full px-6">{c}</Button>
+                       ))}
+                    </div>
+
+                    <div className="flex gap-4">
+                      {/* Alphabetical Sidebar */}
+                      <div className="w-8 flex flex-col items-center gap-1.5 py-4 border-r border-zinc-800 sticky top-0 h-fit">
+                         {alphabet.map(letter => (
+                           <button key={letter} onClick={() => scrollToLetter(letter)} className="text-[10px] font-bold text-zinc-500 hover:text-blue-500 transition-colors uppercase">
+                             {letter}
+                           </button>
+                         ))}
+                      </div>
+
+                      <ScrollArea className="h-[500px] flex-1">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pr-4">
+                          {filteredItems.map(item => (
+                            <button 
+                              key={item.id} 
+                              ref={el => cocktailRefs.current[item.id] = el}
+                              onClick={() => setSelectedCocktail(item)} 
+                              className="p-4 bg-zinc-800 border border-zinc-700 rounded-xl hover:border-blue-500 transition-all text-left flex justify-between items-center group"
+                            >
+                              <div>
+                                <p className="text-[10px] text-zinc-500 uppercase">{item.category}</p>
+                                <p className="font-medium text-white group-hover:text-blue-400">{item.name}</p>
+                              </div>
+                              <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-blue-500" />
+                            </button>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    </div>
+                  </Card>
+               </div>
+
+               <div className="space-y-6 h-fit sticky top-0">
+                 <Card className="bg-zinc-900 border-zinc-800 p-6 flex flex-col gap-6">
+                    <div>
+                      <div className="flex justify-between items-center mb-6">
+                        <h2 className="text-xs uppercase tracking-widest text-zinc-500">Session Workspace</h2>
+                        <Button variant="ghost" size="icon" onClick={() => setUsage([])} className="hover:text-red-500"><Trash2 className="w-4 h-4" /></Button>
+                      </div>
+                      {Object.keys(totalUsageByIngredient).length === 0 ? (
+                        <div className="text-center py-20 text-zinc-700">
+                          <Calculator className="mx-auto mb-4 w-12 h-12 opacity-20" />
+                          <p className="text-[10px] uppercase">Awaiting entries...</p>
+                        </div>
+                      ) : (
+                        <ScrollArea className="h-64 pr-4">
+                          {stockStatus.filter(s => s.used > 0).map(s => (
+                            <div key={s.ingredientName} className="flex justify-between py-3 border-b border-zinc-800 last:border-0">
+                               <span className="text-xs text-zinc-300">{getExcelDisplayName(s.ingredientName)}</span>
+                               <span className="font-mono text-blue-400 font-bold">{(s.used * ML_TO_OZ).toFixed(1)} oz</span>
+                            </div>
+                          ))}
+                        </ScrollArea>
+                      )}
+                    </div>
+
+                    {usage.length > 0 && (
+                      <Button 
+                        onClick={commitToLog} 
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold h-14 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20"
+                      >
+                        <CheckCircle2 className="w-5 h-5" />
+                        SAVE TO HISTORY
+                      </Button>
+                    )}
+                 </Card>
+               </div>
+            </TabsContent>
+
+            <TabsContent value="recipe-data" className="m-0 space-y-6">
+              <div className="flex justify-between items-center bg-zinc-900 border border-zinc-800 p-6 rounded-[32px]">
+                <div>
+                  <h2 className="text-2xl font-bold uppercase tracking-tight">Cocktail Recipes</h2>
+                  <p className="text-sm text-zinc-500">Manage and edit your bar's cocktail database</p>
+                </div>
+                <Button 
+                  onClick={() => {
+                    setEditingRecipe(null);
+                    setRecipeName('');
+                    setRecipeIngredients([]);
+                    setIsRecipeDialogOpen(true);
+                  }}
+                  className="bg-amber-600 hover:bg-amber-700 rounded-2xl h-14 px-8 font-bold gap-2"
+                >
+                  <Plus className="w-5 h-5" /> NEW RECIPE
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                 {cocktails.map(recipe => (
+                   <Card key={recipe.id} className="bg-zinc-950 border-zinc-800 p-6 rounded-[32px] hover:border-amber-500/50 transition-all group overflow-hidden relative">
+                      <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                         <div className="flex gap-2">
+                           <Button 
+                             variant="ghost" 
+                             size="icon" 
+                             className="h-10 w-10 bg-zinc-900 border border-zinc-800 rounded-xl"
+                             onClick={() => {
+                               setEditingRecipe(recipe);
+                               setRecipeName(recipe.name);
+                               setRecipeIngredients([...recipe.ingredients]);
+                               setIsRecipeDialogOpen(true);
+                             }}
+                            >
+                             <Info className="w-4 h-4 text-amber-500" />
+                           </Button>
+                           <Button 
+                             variant="ghost" 
+                             size="icon" 
+                             className="h-10 w-10 bg-zinc-900 border border-zinc-800 rounded-xl hover:text-red-500"
+                             onClick={() => {
+                               if(window.confirm(`Delete ${recipe.name}?`)) {
+                                 setCocktails(prev => prev.filter(c => c.id !== recipe.id));
+                               }
+                             }}
+                            >
+                             <Trash2 className="w-4 h-4" />
+                           </Button>
+                         </div>
+                      </div>
+
+                      <h3 className="text-lg font-bold text-white mb-4 uppercase tracking-tight">{recipe.name}</h3>
+                      <div className="space-y-4">
+                         <div className="space-y-2">
+                           {recipe.ingredients.map((ing, idx) => (
+                             <div key={idx} className="flex justify-between items-center text-sm border-b border-zinc-900 pb-1 last:border-0">
+                                <span className="text-zinc-400">{ing.name}</span>
+                                <span className="font-mono text-amber-500 font-bold">{ing.ml}ml</span>
+                             </div>
+                           ))}
+                         </div>
+                      </div>
+                   </Card>
+                 ))}
+              </div>
+            </TabsContent>
+
+            <TabsContent value="stock" className="space-y-6 m-0">
+               <div className="flex justify-between items-center bg-zinc-900 p-4 rounded-2xl border border-zinc-800">
+                  <div>
+                    <h2 className="text-xl font-bold uppercase tracking-tight">Ingredient Inventory</h2>
+                    <p className="text-xs text-zinc-500">Update current stock levels based on bottles on hand</p>
+                  </div>
+                  <Button onClick={() => setIsSpiritDialogOpen(true)} className="bg-emerald-600 hover:bg-emerald-700 rounded-xl px-6 gap-2">
+                    <Plus className="w-4 h-4" /> ADD OR DELIST SPIRIT
+                  </Button>
+               </div>
+               <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 m-0">
+               <Card className="lg:col-span-3 bg-zinc-900 border-zinc-800 p-6">
+                  <h2 className="text-xl font-bold mb-6 uppercase tracking-tight">Initial Stock Setup</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                     {sortedStock.map(s => {
+                       const size = getBottleSize(s.ingredientName);
+                       return (
+                         <div key={s.ingredientName} className="p-3 bg-zinc-950 border border-zinc-800 rounded-xl flex items-center justify-between">
+                            <span className="text-xs font-medium">{getExcelDisplayName(s.ingredientName)}</span>
+                            <div className="flex items-center gap-2">
+                               <Input type="number" step="0.1" value={s.initialMl/size || ''} onChange={e => updateStock(s.ingredientName, (parseFloat(e.target.value)||0)*size)} className="w-20 text-right font-mono text-xs bg-zinc-900 border-zinc-800" />
+                               <span className="text-[10px] text-zinc-600">BTL</span>
+                            </div>
+                         </div>
+                       )
+                     })}
+                  </div>
+               </Card>
+               <Card className="bg-zinc-900 border-zinc-800 p-6 h-fit sticky top-0">
+                  <h2 className="text-xs uppercase tracking-widest text-zinc-500 mb-6">STOCK HEALTH</h2>
+                  <ScrollArea className="h-[600px] pr-4">
+                    <div className="space-y-4">
+                      {sortedStockStatus.map(s => {
+                        const bSize = getBottleSize(s.ingredientName);
+                        return (
+                          <div key={s.ingredientName} className="space-y-1">
+                             <div className="flex justify-between text-[10px] uppercase"><span className="text-zinc-400">{getExcelDisplayName(s.ingredientName)}</span><span className={s.isLow ? 'text-red-500 font-bold' : 'text-emerald-500'}>{(s.remaining/bSize).toFixed(1)} left</span></div>
+                             <div className="h-1 bg-black rounded-full overflow-hidden"><motion.div initial={{ width: 0 }} animate={{ width: `${Math.max(0, Math.min(100, s.percentage))}%` }} className={`h-full ${s.isLow ? 'bg-red-500' : 'bg-emerald-500'}`} /></div>
+                          </div>
+                      )})}
+                    </div>
+                  </ScrollArea>
+               </Card>
+             </div>
+            </TabsContent>
+
+            <TabsContent value="summary" className="m-0 space-y-6 pb-20">
+               <div className="flex justify-between items-center">
+                  <h2 className="text-xl font-bold uppercase tracking-tight">Monthly Performance</h2>
+                  <p className="text-[10px] text-zinc-500 uppercase tracking-widest">{new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</p>
+               </div>
+
+               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <Card className="bg-blue-600/10 border-blue-500/20 p-4">
+                    <p className="text-[10px] text-blue-400 uppercase mb-1">Total Signatures</p>
+                    <p className="text-2xl font-bold">{monthlySummary.signatures}</p>
+                  </Card>
+                  <Card className="bg-emerald-600/10 border-emerald-500/20 p-4">
+                    <p className="text-[10px] text-emerald-400 uppercase mb-1">Total Classics</p>
+                    <p className="text-2xl font-bold">{monthlySummary.classics}</p>
+                  </Card>
+                  <Card className="bg-indigo-600/10 border-indigo-500/20 p-4">
+                    <p className="text-[10px] text-indigo-400 uppercase mb-1">Total Spirits</p>
+                    <p className="text-2xl font-bold">{monthlySummary.spirits}</p>
+                  </Card>
+                  <Card className="bg-zinc-800 border-zinc-700 p-4">
+                    <p className="text-[10px] text-zinc-400 uppercase mb-1">Top Seller</p>
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-bold truncate pr-2">{monthlySummary.topSeller?.name || 'N/A'}</p>
+                      <Badge variant="outline" className="bg-blue-500/20 text-blue-400 border-none h-5">{monthlySummary.topSellerQty}</Badge>
+                    </div>
+                  </Card>
+               </div>
+
+               <h2 className="text-xl font-bold uppercase tracking-tight pt-4">Historical Records</h2>
+               {logs.length === 0 ? (
+                 <Card className="bg-zinc-900 border-zinc-800 p-12 text-center text-zinc-600">
+                    <RefreshCcw className="mx-auto mb-4 w-12 h-12 opacity-10" />
+                    <p className="uppercase text-xs tracking-widest">No history found (logs are kept for 30 days)</p>
+                 </Card>
+               ) : (
+                 <div className="space-y-4">
+                   {logs.map(log => {
+                     const stats = getCategoryStats(log.usage);
+                     return (
+                       <Card 
+                          key={log.date} 
+                          onClick={() => setSelectedLog(log)}
+                          className="bg-zinc-900 border-zinc-800 overflow-hidden hover:border-zinc-600 transition-all cursor-pointer active:scale-[0.99] group"
+                       >
+                         <div className="p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                            <div className="space-y-1">
+                               <p className="text-blue-500 font-mono text-lg font-bold">{new Date(log.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                               <p className="text-[10px] text-zinc-500 uppercase tracking-tighter">Session: {new Date(log.timestamp).toLocaleTimeString()}</p>
+                            </div>
+                            <div className="flex gap-8 flex-1 justify-center">
+                               <div className="text-center">
+                                  <p className="text-[10px] text-zinc-500 uppercase mb-1">Sig</p>
+                                  <p className="text-lg font-bold text-white">{stats.signatures}</p>
+                               </div>
+                               <div className="text-center">
+                                  <p className="text-[10px] text-zinc-500 uppercase mb-1">Clas</p>
+                                  <p className="text-lg font-bold text-white">{stats.classics}</p>
+                               </div>
+                               <div className="text-center">
+                                  <p className="text-[10px] text-zinc-500 uppercase mb-1">Spir</p>
+                                  <p className="text-lg font-bold text-white">{stats.spirits}</p>
+                               </div>
+                            </div>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setLogToDelete(log.date);
+                              }}
+                              className="text-zinc-700 hover:text-red-500 hover:bg-red-500/10"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                         </div>
+                       </Card>
+                     );
+                   })}
+                 </div>
+               )}
+            </TabsContent>
+
+            <TabsContent value="beverage-order" className="m-0 space-y-6 pb-20">
+              <div className="flex justify-between items-center bg-zinc-900 border border-zinc-800 p-6 rounded-[32px]">
+                <div>
+                  <h2 className="text-2xl font-bold uppercase tracking-tight text-rose-500">Beverage Order Analytics</h2>
+                  <p className="text-sm text-zinc-500">Last 4 days depletion analysis and ordering suggestions</p>
+                </div>
+                <div className="flex items-center gap-2 px-4 py-2 bg-rose-500/10 border border-rose-500/20 rounded-2xl">
+                  <Zap className="w-4 h-4 text-rose-500" />
+                  <span className="text-xs font-bold text-rose-500 uppercase">Velocity Based</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                 {/* Top Sellers Column */}
+                 <div className="space-y-6">
+                    <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500 ml-2">Top Sold (4 Days)</h3>
+                    <div className="space-y-3">
+                       {beverageOrderAnalysis.topDrinks.length === 0 ? (
+                         <Card className="bg-zinc-900 border-zinc-800 p-12 text-center text-zinc-700 rounded-[32px]">
+                           <p className="text-[10px] uppercase">No data for last 4 days</p>
+                         </Card>
+                       ) : beverageOrderAnalysis.topDrinks.map((d, i) => (
+                         <Card key={i} className="bg-zinc-900 border-zinc-800 p-4 rounded-2xl flex items-center justify-between group hover:border-rose-500/30 transition-all">
+                            <div className="flex items-center gap-4">
+                               <div className="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center text-[10px] font-bold text-zinc-500 font-mono">#{i+1}</div>
+                               <div>
+                                 <p className="text-sm font-bold text-white uppercase tracking-tight">{d.item?.name}</p>
+                                 <p className="text-[10px] text-zinc-500">{d.item?.category}</p>
+                               </div>
+                            </div>
+                            <div className="text-right">
+                               <p className="text-lg font-bold text-rose-500 font-mono">{d.quantity}</p>
+                               <p className="text-[10px] text-zinc-600 uppercase font-bold">Qty</p>
+                            </div>
+                         </Card>
+                       ))}
+                    </div>
+                 </div>
+
+                 {/* Order Suggestions Column */}
+                 <div className="lg:col-span-2 space-y-6">
+                    <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500 ml-2">Suggested Spirits Reorder</h3>
+                    <Card className="bg-zinc-900 border-zinc-800 rounded-[32px] overflow-hidden">
+                       <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                             <thead>
+                                <tr className="bg-zinc-800 shadow-sm text-[10px] uppercase text-zinc-500 text-left">
+                                   <th className="p-6 font-bold">Spirit Ingredient</th>
+                                   <th className="p-6 font-bold text-right">4-Day Vol (ML)</th>
+                                   <th className="p-6 font-bold text-right">Avg Daily (ML)</th>
+                                   <th className="p-6 font-bold text-right">Suggested (Btls)</th>
+                                </tr>
+                             </thead>
+                             <tbody>
+                                {beverageOrderAnalysis.sortedDepletion.length === 0 ? (
+                                  <tr>
+                                    <td colSpan={4} className="p-12 text-center text-zinc-700 uppercase text-[10px]">Insufficient history to generate order</td>
+                                  </tr>
+                                ) : beverageOrderAnalysis.sortedDepletion.map((s, idx) => (
+                                  <tr key={idx} className="border-t border-zinc-800/50 hover:bg-white/5 transition-colors group">
+                                     <td className="p-6">
+                                        <p className="font-bold text-white uppercase tracking-tight group-hover:text-rose-400 transition-colors">{getExcelDisplayName(s.name)}</p>
+                                        <p className="text-[10px] text-zinc-600">Unit: {s.bSize}ml</p>
+                                     </td>
+                                     <td className="p-6 text-right font-mono text-zinc-300">{s.totalMl.toFixed(0)}</td>
+                                     <td className="p-6 text-right font-mono text-zinc-500">{s.avgDailyMl.toFixed(1)}</td>
+                                     <td className="p-6 text-right">
+                                        <div className="flex flex-col items-end">
+                                          <span className={`text-lg font-bold font-mono ${s.bottlesNeeded >= 1 ? 'text-emerald-500' : 'text-zinc-500'}`}>
+                                            {s.bottlesNeeded.toFixed(2)}
+                                          </span>
+                                          <span className="text-[9px] uppercase font-bold text-zinc-600">Bottles</span>
+                                        </div>
+                                     </td>
+                                  </tr>
+                                ))}
+                             </tbody>
+                          </table>
+                       </div>
+                    </Card>
+
+                    <div className="p-6 bg-rose-500/5 border border-rose-500/10 rounded-[32px] flex items-center gap-6">
+                       <div className="w-12 h-12 rounded-2xl bg-rose-500 flex items-center justify-center shrink-0 shadow-lg shadow-rose-500/20">
+                          <Bot className="w-6 h-6 text-white" />
+                       </div>
+                       <div>
+                          <p className="text-sm font-bold uppercase tracking-tight text-white italic">Intelligent Sourcing</p>
+                          <p className="text-xs text-zinc-500">Calculations based on actual depletion rates from {logs.filter(l => l.timestamp > Date.now() - 4*24*60*60*1000).length} verified sessions in the last 4 days.</p>
+                       </div>
+                    </div>
+                 </div>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </main>
+      </div>
+
+      <Dialog open={!!selectedCocktail} onOpenChange={open => !open && setSelectedCocktail(null)}>
+        <DialogContent className="bg-zinc-900 border-zinc-800 text-white max-w-sm rounded-[32px] p-8">
+           <div className="text-center mb-8">
+             <div className="w-16 h-16 bg-blue-600/20 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-blue-500/20"><GlassWater className="text-blue-500 w-8 h-8" /></div>
+             <h2 className="text-xl font-bold">{selectedCocktail?.name}</h2>
+             <p className="text-xs text-zinc-500 mt-2">{selectedCocktail?.ingredients.map(i=>`${i.ml}ml ${i.name}`).join(' / ')}</p>
+           </div>
+
+           <div className="bg-black border border-zinc-800 rounded-3xl p-6 text-center mb-8">
+             <p className="text-[10px] uppercase text-zinc-500 tracking-widest mb-4">Quantity Sold</p>
+             <div className="flex items-center justify-center gap-6">
+                <Button variant="outline" size="icon" onClick={() => setQuantityInput(Math.max(1, parseInt(quantityInput)-1).toString())} className="rounded-xl">—</Button>
+                <input ref={quantityInputRef} type="number" value={quantityInput} onChange={e => setQuantityInput(e.target.value.replace(/\D/g,''))} onFocus={e => e.target.select()} className="w-20 text-3xl font-mono font-bold text-center bg-transparent border-none focus:ring-0 outline-none" />
+                <Button variant="outline" size="icon" onClick={() => setQuantityInput((parseInt(quantityInput)+1).toString())} className="rounded-xl">+</Button>
+             </div>
+           </div>
+           
+           <DialogFooter><Button onClick={handleAddUsage} className="w-full bg-white text-black font-bold h-14 rounded-2xl">RECORD SALE</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+       <Dialog open={!!selectedLog} onOpenChange={open => !open && setSelectedLog(null)}>
+        <DialogContent className="bg-zinc-900 border-zinc-800 text-white max-w-md rounded-[32px] p-8">
+          <DialogHeader>
+            <DialogTitle className="text-center text-blue-500 font-mono text-xl">
+              {selectedLog ? new Date(selectedLog.date).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' }) : ''}
+            </DialogTitle>
+          </DialogHeader>
+          
+          <ScrollArea className="h-96 pr-4 mt-6">
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-[10px] uppercase tracking-widest text-zinc-500 mb-4 border-b border-zinc-800 pb-2">Items Sold</h3>
+                <div className="space-y-2">
+                  {(() => {
+                    if (!selectedLog) return null;
+                    const breakdown: { [id: string]: number } = {};
+                    selectedLog.usage.forEach(r => {
+                      breakdown[r.cocktailId] = (breakdown[r.cocktailId] || 0) + r.quantity;
+                    });
+                    
+                    return Object.entries(breakdown).map(([id, qty]) => {
+                      const item = fullCocktailList.find(c => c.id === id);
+                      return (
+                        <div key={id} className="flex justify-between items-center py-2 border-b border-zinc-800 last:border-0 hover:bg-white/5 transition-colors px-2 rounded-lg">
+                          <div>
+                            <p className="text-sm font-medium">{item?.name || id}</p>
+                            <p className="text-[10px] text-zinc-500 uppercase tracking-tighter">{item?.category}</p>
+                          </div>
+                          <div className="bg-blue-600/10 text-blue-400 px-3 py-1 rounded-lg font-mono text-sm font-bold">
+                            {qty}
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-[10px] uppercase tracking-widest text-zinc-500 mb-4 border-b border-zinc-800 pb-2">Liquid Consumption</h3>
+                <div className="space-y-2">
+                  {(() => {
+                    if (!selectedLog) return null;
+                    const ingTotals: { [name: string]: number } = {};
+                    selectedLog.usage.forEach(r => {
+                      const item = fullCocktailList.find(c => c.id === r.cocktailId);
+                      item?.ingredients.forEach(ing => {
+                        if (ing.isAlcohol) {
+                          ingTotals[ing.name] = (ingTotals[ing.name] || 0) + (ing.ml * r.quantity);
+                        }
+                      });
+                    });
+
+                    return Object.entries(ingTotals)
+                      .sort((a, b) => getExcelSortIndex(a[0]) - getExcelSortIndex(b[0]))
+                      .map(([name, ml]) => (
+                        <div key={name} className="flex justify-between items-center py-2 border-b border-zinc-800 last:border-0 hover:bg-white/5 transition-colors px-2 rounded-lg">
+                          <span className="text-xs text-zinc-300">{getExcelDisplayName(name)}</span>
+                          <div className="text-right">
+                             <p className="text-sm font-mono text-indigo-400 font-bold">{(ml * ML_TO_OZ).toFixed(1)} oz</p>
+                             <p className="text-[10px] text-zinc-600 font-mono">{ml} ml</p>
+                          </div>
+                        </div>
+                      ));
+                  })()}
+                </div>
+              </div>
+            </div>
+          </ScrollArea>
+          
+          <DialogFooter className="mt-6">
+            <Button onClick={() => setSelectedLog(null)} className="w-full bg-zinc-800 hover:bg-zinc-700 text-white rounded-2xl h-12">DISMISS</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!logToDelete} onOpenChange={open => !open && setLogToDelete(null)}>
+        <DialogContent className="bg-zinc-900 border-zinc-800 text-white max-w-sm rounded-[32px] p-8">
+          <DialogHeader className="items-center">
+            <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mb-4">
+              <Trash2 className="w-8 h-8 text-red-500" />
+            </div>
+            <DialogTitle className="text-xl font-bold uppercase tracking-tight text-center">Delete Log?</DialogTitle>
+            <p className="text-sm text-zinc-500 text-center mt-2">
+              Are you sure you want to delete the log for {logToDelete ? new Date(logToDelete).toLocaleDateString() : ''}? This action cannot be undone.
+            </p>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4 mt-8">
+            <Button variant="outline" onClick={() => setLogToDelete(null)} className="h-14 rounded-2xl border-zinc-700 hover:bg-zinc-800">CANCEL</Button>
+            <Button 
+              onClick={() => {
+                if (logToDelete) {
+                  setLogs(prev => prev.filter(l => l.date !== logToDelete));
+                  setLogToDelete(null);
+                }
+              }} 
+              className="h-14 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-bold"
+            >
+              DELETE
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={isRecipeDialogOpen} onOpenChange={setIsRecipeDialogOpen}>
+        <DialogContent className="bg-zinc-950 border-zinc-800 text-white max-w-2xl rounded-[32px] overflow-hidden p-0">
+          <DialogHeader className="p-8 pb-4">
+            <DialogTitle className="text-2xl font-bold uppercase tracking-tight">{editingRecipe ? 'Edit Recipe' : 'New Cocktail Recipe'}</DialogTitle>
+          </DialogHeader>
+          <div className="p-8 pt-0 space-y-6">
+            <div className="space-y-2">
+              <label className="text-[10px] uppercase text-zinc-500 font-bold tracking-widest">Cocktail Name</label>
+              <Input 
+                value={recipeName} 
+                onChange={e => setRecipeName(e.target.value)} 
+                className="bg-zinc-900 border-zinc-800 text-lg h-14 rounded-2xl" 
+                placeholder="e.g. Signature Martini"
+              />
+            </div>
+
+            <div className="space-y-4">
+              <label className="text-[10px] uppercase text-zinc-500 font-bold tracking-widest">Ingredients</label>
+              <div className="space-y-3">
+                {recipeIngredients.map((ing, idx) => (
+                  <div key={idx} className="flex justify-between items-center bg-zinc-900 p-4 rounded-xl border border-zinc-800">
+                    <span className="font-bold">{ing.name}</span>
+                    <div className="flex items-center gap-4">
+                      <span className="font-mono text-amber-500">{ing.ml}ml</span>
+                      <Button variant="ghost" size="icon" onClick={() => setRecipeIngredients(prev => prev.filter((_, i) => i !== idx))} className="h-8 w-8 text-zinc-500 hover:text-red-500">
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="md:col-span-2">
+                  <select 
+                    value={newIngName} 
+                    onChange={e => setNewIngName(e.target.value)}
+                    className="w-full bg-zinc-900 border-zinc-800 text-white rounded-xl h-12 px-4 focus:ring-amber-500"
+                  >
+                    <option value="">Select Spirit...</option>
+                    {allIngredients.sort().map(name => (
+                      <option key={name} value={name}>{name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex gap-2">
+                  <Input 
+                    type="number" 
+                    value={newIngMl} 
+                    onChange={e => setNewIngMl(e.target.value)} 
+                    placeholder="ml" 
+                    className="bg-zinc-900 border-zinc-800 rounded-xl" 
+                  />
+                  <Button 
+                    onClick={() => {
+                      if(newIngName && newIngMl) {
+                        setRecipeIngredients(prev => [...prev, { name: newIngName, ml: parseInt(newIngMl), isAlcohol: true }]);
+                        setNewIngName('');
+                        setNewIngMl('');
+                      }
+                    }}
+                    className="bg-zinc-800 hover:bg-amber-600 rounded-xl px-4"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <Button onClick={handleSaveRecipe} className="w-full h-14 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-2xl">
+              SAVE RECIPE
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isSpiritDialogOpen} onOpenChange={setIsSpiritDialogOpen}>
+        <DialogContent className="bg-zinc-950 border-zinc-800 text-white max-w-xl rounded-[32px] overflow-hidden p-0">
+          <div className="flex border-b border-zinc-900">
+            <button 
+              onClick={() => setSpiritMode('add')}
+              className={`flex-1 py-6 font-bold uppercase tracking-widest text-sm transition-all ${spiritMode === 'add' ? 'bg-emerald-600 text-white' : 'hover:bg-zinc-900 text-zinc-500'}`}
+            >
+              Add Spirit
+            </button>
+            <button 
+              onClick={() => setSpiritMode('remove')}
+              className={`flex-1 py-6 font-bold uppercase tracking-widest text-sm transition-all ${spiritMode === 'remove' ? 'bg-red-600 text-white' : 'hover:bg-zinc-900 text-zinc-500'}`}
+            >
+              Delist Spirit
+            </button>
+          </div>
+
+          <div className="p-8 space-y-6">
+            {spiritMode === 'add' ? (
+              <div className="space-y-6">
+                 <div className="space-y-2">
+                   <label className="text-[10px] uppercase text-zinc-500 font-bold tracking-widest">Bottle Name</label>
+                   <Input value={newSpiritName} onChange={e => setNewSpiritName(e.target.value)} className="bg-zinc-900 border-zinc-800 h-12 rounded-xl" placeholder="e.g. Absolut Vodka" />
+                 </div>
+                 <div className="grid grid-cols-2 gap-4">
+                   <div className="space-y-2">
+                     <label className="text-[10px] uppercase text-zinc-500 font-bold tracking-widest">Bottle Size (ml)</label>
+                     <Input type="number" value={newSpiritBtlSize} onChange={e => setNewSpiritBtlSize(e.target.value)} className="bg-zinc-900 border-zinc-800 h-12 rounded-xl" />
+                   </div>
+                   <div className="space-y-2">
+                     <label className="text-[10px] uppercase text-zinc-500 font-bold tracking-widest">Serving Portion (ml)</label>
+                     <select value={newSpiritGlassSize} onChange={e => setNewSpiritGlassSize(e.target.value)} className="w-full bg-zinc-900 border-zinc-800 text-white rounded-xl h-12 px-4">
+                       <option value="45">45ml</option>
+                       <option value="30">30ml</option>
+                       <option value="0">Bottle Only</option>
+                     </select>
+                   </div>
+                 </div>
+                 <div className="space-y-2">
+                   <label className="text-[10px] uppercase text-zinc-500 font-bold tracking-widest">Position in Table (1-{excelOrder.length + 1})</label>
+                   <Input type="number" value={newSpiritPosition} onChange={e => setNewSpiritPosition(e.target.value)} className="bg-zinc-900 border-zinc-800 h-12 rounded-xl" placeholder="e.g. 5" />
+                 </div>
+                 <Button onClick={handleSaveSpirit} className="w-full h-14 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl">
+                   ADD TO STOCK
+                 </Button>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <label className="text-[10px] uppercase text-zinc-500 font-bold tracking-widest">Select items to remove</label>
+                <ScrollArea className="h-64 pr-4 border border-zinc-900 rounded-xl p-4">
+                  <div className="space-y-2">
+                    {allIngredients.sort().map(name => (
+                      <div key={name} className="flex items-center gap-3 p-3 bg-zinc-900 rounded-lg hover:bg-zinc-800 transition-colors">
+                        <input 
+                          type="checkbox" 
+                          checked={spiritsToRemove.includes(name)}
+                          onChange={e => {
+                            if(e.target.checked) setSpiritsToRemove(prev => [...prev, name]);
+                            else setSpiritsToRemove(prev => prev.filter(n => n !== name));
+                          }}
+                          className="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-red-600 focus:ring-red-500"
+                        />
+                        <span className="text-sm">{name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+                <Button onClick={handleRemoveSpirits} disabled={spiritsToRemove.length === 0} className="w-full h-14 bg-red-600 hover:bg-red-700 text-white font-bold rounded-2xl disabled:opacity-50">
+                  CONFIRM REMOVAL ({spiritsToRemove.length})
+                </Button>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
