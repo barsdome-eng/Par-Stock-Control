@@ -46,6 +46,22 @@ service cloud.firestore {
              (data.spiritMapping == null || data.spiritMapping is map);
     }
 
+    function isValidBatchRecipe(data) {
+      return data.name is string && data.name.size() <= 100 &&
+             data.baseVolume is number &&
+             data.ingredients is list &&
+             data.steps is list &&
+             data.userId == request.auth.uid;
+    }
+
+    function isValidBatchLog(data) {
+      return data.recipeId is string && data.recipeName is string &&
+             data.targetVolume is number &&
+             data.timestamp is number &&
+             data.date is string &&
+             data.userId == request.auth.uid;
+    }
+
     // Collection matches
     match /cocktails/{cocktailId} {
       allow get: if isOwner(existing().userId);
@@ -76,6 +92,24 @@ service cloud.firestore {
 
     match /settings/{userId} {
       allow get, write: if isOwner(userId) && isEmailVerified() && (request.method == 'get' || isValidSettings(incoming()));
+    }
+
+    match /batchRecipes/{recipeId} {
+      allow get: if isOwner(existing().userId);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isEmailVerified() && isValidId(recipeId) && isValidBatchRecipe(incoming());
+      allow update: if isSignedIn() && isEmailVerified() && isOwner(existing().userId) && isValidBatchRecipe(incoming()) &&
+                   incoming().userId == existing().userId;
+      allow delete: if isSignedIn() && isOwner(existing().userId);
+    }
+
+    match /batchLogs/{logId} {
+      allow get: if isOwner(existing().userId);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isEmailVerified() && isValidId(logId) && isValidBatchLog(incoming());
+      allow update: if isSignedIn() && isEmailVerified() && isOwner(existing().userId) && isValidBatchLog(incoming()) &&
+                   incoming().userId == existing().userId;
+      allow delete: if isSignedIn() && isOwner(existing().userId);
     }
   }
 }

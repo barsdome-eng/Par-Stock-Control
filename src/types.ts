@@ -28,6 +28,23 @@ export interface DailyLog {
   timestamp: number;
 }
 
+export interface BatchRecipe {
+  id: string;
+  name: string;
+  baseVolume: number; // e.g., 20 for 20L
+  ingredients: Ingredient[];
+  steps: string[];
+}
+
+export interface BatchLog {
+  id: string;
+  recipeId: string;
+  recipeName: string;
+  targetVolume: number;
+  timestamp: number;
+  date: string;
+}
+
 export interface InventoryState {
   usage: UsageRecord[];
   stock: StockLevel[];

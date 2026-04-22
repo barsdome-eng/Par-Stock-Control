@@ -64,6 +64,38 @@
         "userId": { "type": "string" }
       },
       "required": ["userId"]
+    },
+    "BatchRecipe": {
+      "title": "Batch Recipe",
+      "description": "Definition of a batch (bulk) recipe",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "baseVolume": { "type": "number" },
+        "ingredients": {
+          "type": "array",
+          "items": { "type": "object", "properties": { "name": { "type": "string" }, "ml": { "type": "number" }, "isAlcohol": { "type": "boolean" } } }
+        },
+        "steps": { "type": "array", "items": { "type": "string" } },
+        "userId": { "type": "string" }
+      },
+      "required": ["name", "baseVolume", "ingredients", "steps", "userId"]
+    },
+    "BatchLog": {
+      "title": "Batch Log",
+      "description": "Historical record of a batch production",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "recipeId": { "type": "string" },
+        "recipeName": { "type": "string" },
+        "targetVolume": { "type": "number" },
+        "timestamp": { "type": "number" },
+        "date": { "type": "string" },
+        "userId": { "type": "string" }
+      },
+      "required": ["recipeId", "recipeName", "targetVolume", "timestamp", "date", "userId"]
     }
   },
   "firestore": {
@@ -82,6 +114,14 @@
     "/settings/{userId}": {
       "schema": "AppSettings",
       "description": "User application settings"
+    },
+    "/batchRecipes/{recipeId}": {
+      "schema": "BatchRecipe",
+      "description": "User batch recipes"
+    },
+    "/batchLogs/{logId}": {
+      "schema": "BatchLog",
+      "description": "User batch production logs"
     }
   }
 }

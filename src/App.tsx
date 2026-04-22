@@ -34,8 +34,9 @@ import {
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Cocktail, UsageRecord, StockLevel, DailyLog, Ingredient } from './types';
+import { Cocktail, UsageRecord, StockLevel, DailyLog, Ingredient, BatchRecipe, BatchLog } from './types';
 import { cocktails as initialCocktails, spiritsByGlass45 as initialGlass45, spiritsByGlass30 as initialGlass30, spiritsByBottle as initialBottle } from './data/cocktails';
+import { initialBatchRecipes } from './data/batchRecipes';
 
 const ML_TO_OZ = 1 / 30;
 
@@ -153,6 +154,14 @@ const initialExcelOrder = [
   "Dry Orange \"De Kuyper\" 700 ml",
   "Ayala Brut Majeur 750 ml",
   "Masottina Calmaggiore Prosecco 750 ml",
+  "Silpin Jasmine Rice Syrup 500 ml",
+  "Silpin Tamarind Syrup 500 ml",
+  "Passionfruit Monin 700 ml",
+  "Strawberry Monin 700 ml",
+  "Pineapple Monin 700 ml",
+  "Monin Rose 700 ml",
+  "Hale Blue Boy Jasmine 710 ml",
+  "White Wine (Sauvignon Blanc) 750 ml",
 ];
 
 const initialMapping: { [key: string]: string } = {
@@ -275,6 +284,9 @@ export default function App() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [history, setHistory] = useState<{usage: UsageRecord[], stock: StockLevel[]}[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [recipeSearchQuery, setRecipeSearchQuery] = useState('');
+  const [stockSearchQuery, setStockSearchQuery] = useState('');
+  const [batchSearchQuery, setBatchSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<'All' | 'Cocktail' | 'Spirit by Glass' | 'Spirit by Bottle'>('All');
   const [activeTab, setActiveTab] = useState('par-cutting');
   
@@ -306,6 +318,16 @@ export default function App() {
   const [spiritMapping, setSpiritMapping] = useState<{ [key: string]: string }>(() => {
     const cached = localStorage.getItem('skybar_mapping_v1');
     return cached ? JSON.parse(cached) : initialMapping;
+  });
+
+  const [batchRecipes, setBatchRecipes] = useState<BatchRecipe[]>(() => {
+    const cached = localStorage.getItem('skybar_batch_recipes_v1');
+    return cached ? JSON.parse(cached) : initialBatchRecipes;
+  });
+
+  const [batchLogs, setBatchLogs] = useState<BatchLog[]>(() => {
+    const cached = localStorage.getItem('skybar_batch_logs_v1');
+    return cached ? JSON.parse(cached) : [];
   });
 
   // Generated items
@@ -344,6 +366,8 @@ export default function App() {
   const [isSpiritDialogOpen, setIsSpiritDialogOpen] = useState(false);
   const [spiritMode, setSpiritMode] = useState<'add' | 'remove'>('add');
   const [expandedMonths, setExpandedMonths] = useState<string[]>([]);
+  const [selectedBatchRecipe, setSelectedBatchRecipe] = useState<BatchRecipe | null>(null);
+  const [batchVolumeInput, setBatchVolumeInput] = useState<string>('');
   const [newSpiritName, setNewSpiritName] = useState('');
   const [newSpiritBtlSize, setNewSpiritBtlSize] = useState('750');
   const [newSpiritGlassSize, setNewSpiritGlassSize] = useState('45');
@@ -426,6 +450,8 @@ export default function App() {
   useEffect(() => localStorage.setItem('skybar_bottle_v1', JSON.stringify(spiritsByBottle)), [spiritsByBottle]);
   useEffect(() => localStorage.setItem('skybar_excelOrder_v1', JSON.stringify(excelOrder)), [excelOrder]);
   useEffect(() => localStorage.setItem('skybar_mapping_v1', JSON.stringify(spiritMapping)), [spiritMapping]);
+  useEffect(() => localStorage.setItem('skybar_batch_recipes_v1', JSON.stringify(batchRecipes)), [batchRecipes]);
+  useEffect(() => localStorage.setItem('skybar_batch_logs_v1', JSON.stringify(batchLogs)), [batchLogs]);
 
   // Keep tracking logs in local storage as well
   const [logs, setLogs] = useState<DailyLog[]>(() => {
@@ -520,11 +546,35 @@ export default function App() {
       }
     });
 
+    const qBatchRecipes = query(collection(db, 'batchRecipes'), where('userId', '==', user.uid));
+    const unsubBatchRecipes = onSnapshot(qBatchRecipes, (snapshot) => {
+      const data = snapshot.docs.map(d => d.data() as BatchRecipe);
+      if (data.length > 0) {
+        setBatchRecipes(prev => {
+          const merged = [...initialBatchRecipes];
+          data.forEach(br => {
+            const idx = merged.findIndex(p => p.id === br.id);
+            if (idx !== -1) merged[idx] = br;
+            else merged.push(br);
+          });
+          return merged;
+        });
+      }
+    });
+
+    const qBatchLogs = query(collection(db, 'batchLogs'), where('userId', '==', user.uid));
+    const unsubBatchLogs = onSnapshot(qBatchLogs, (snapshot) => {
+      const data = snapshot.docs.map(d => d.data() as BatchLog);
+      if (data.length > 0) setBatchLogs(data.sort((a,b) => b.timestamp - a.timestamp));
+    });
+
     return () => {
       unsubCocktails();
       unsubStock();
       unsubLogs();
       unsubSettings();
+      unsubBatchRecipes();
+      unsubBatchLogs();
     };
   }, [user]);
 
@@ -568,6 +618,16 @@ export default function App() {
       // Logs
       logs.forEach(l => {
         batch.set(doc(db, 'logs', l.date), { ...l, userId: user.uid });
+      });
+
+      // Batch Recipes
+      batchRecipes.forEach(br => {
+        batch.set(doc(db, 'batchRecipes', br.id), { ...br, userId: user.uid });
+      });
+
+      // Batch Logs
+      batchLogs.forEach(bl => {
+        batch.set(doc(db, 'batchLogs', bl.id), { ...bl, userId: user.uid });
       });
 
       await batch.commit();
@@ -776,10 +836,15 @@ export default function App() {
   const updateStock = async (name: string, ml: number) => {
     pushToHistory();
     if (user) {
+      setIsSyncing(true);
       try {
         const id = name.toLowerCase().replace(/\s+/g, '-');
         await setDoc(doc(db, 'stock', id), { ingredientName: name, initialMl: ml, userId: user.uid, updatedAt: Timestamp.now() });
-      } catch (err) { handleFirestoreError(err, 'write', `stock/${name}`); }
+      } catch (err) { 
+        handleFirestoreError(err, 'write', `stock/${name}`); 
+      } finally {
+        setIsSyncing(false);
+      }
     }
     setStock(prev => prev.map(s => s.ingredientName === name ? { ...s, initialMl: ml } : s));
   };
@@ -807,9 +872,14 @@ export default function App() {
     const finalLog = existing ? { ...existing, usage: [...existing.usage, ...usage], timestamp: Date.now() } : { date: selectedDate, usage: [...usage], timestamp: Date.now() };
     
     if (user) {
+      setIsSyncing(true);
       try {
         await setDoc(doc(db, 'logs', finalLog.date), { ...finalLog, userId: user.uid });
-      } catch (err) { handleFirestoreError(err, 'write', `logs/${finalLog.date}`); }
+      } catch (err) { 
+        handleFirestoreError(err, 'write', `logs/${finalLog.date}`); 
+      } finally {
+        setIsSyncing(false);
+      }
     }
 
     setLogs(prev => {
@@ -818,7 +888,6 @@ export default function App() {
     });
 
     setUsage([]);
-    alert(user ? "Syncing to cloud..." : "Record committed to local history.");
   };
 
   const totalUsageByIngredient = useMemo(() => {
@@ -841,12 +910,20 @@ export default function App() {
   }, [stock, totalUsageByIngredient]);
 
   const sortedStockStatus = useMemo(() => {
-    return [...stockStatus].sort((a, b) => getExcelSortIndex(a.ingredientName) - getExcelSortIndex(b.ingredientName));
-  }, [stockStatus, excelOrder]);
+    return [...stockStatus]
+      .filter(s => getExcelDisplayName(s.ingredientName).toLowerCase().includes(stockSearchQuery.toLowerCase()))
+      .sort((a, b) => getExcelSortIndex(a.ingredientName) - getExcelSortIndex(b.ingredientName));
+  }, [stockStatus, excelOrder, stockSearchQuery]);
 
   const sortedStock = useMemo(() => {
-    return [...stock].sort((a, b) => getExcelSortIndex(a.ingredientName) - getExcelSortIndex(b.ingredientName));
-  }, [stock, excelOrder]);
+    return [...stock]
+      .filter(s => getExcelDisplayName(s.ingredientName).toLowerCase().includes(stockSearchQuery.toLowerCase()))
+      .sort((a, b) => getExcelSortIndex(a.ingredientName) - getExcelSortIndex(b.ingredientName));
+  }, [stock, excelOrder, stockSearchQuery]);
+
+  const filteredCocktails = useMemo(() => {
+    return cocktails.filter(c => c.name.toLowerCase().includes(recipeSearchQuery.toLowerCase()));
+  }, [cocktails, recipeSearchQuery]);
 
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
   const scrollToLetter = (letter: string) => {
@@ -888,17 +965,69 @@ export default function App() {
     setRecipeName('');
 
     if (user) {
+      setIsSyncing(true);
       try {
         await setDoc(doc(db, 'cocktails', newRecipe.id), { ...newRecipe, userId: user.uid, updatedAt: Timestamp.now() });
-      } catch (err) { handleFirestoreError(err, 'write', `cocktails/${newRecipe.id}`); }
+      } catch (err) { 
+        handleFirestoreError(err, 'write', `cocktails/${newRecipe.id}`); 
+      } finally {
+        setIsSyncing(false);
+      }
+    }
+  };
+
+  const handleCreateBatch = async (recipe: BatchRecipe, targetVol: number) => {
+    const newLog: BatchLog = {
+      id: Date.now().toString(),
+      recipeId: recipe.id,
+      recipeName: recipe.name,
+      targetVolume: targetVol,
+      timestamp: Date.now(),
+      date: new Date().toISOString().split('T')[0]
+    };
+
+    if (user) {
+      setIsSyncing(true);
+      try {
+        await setDoc(doc(db, 'batchLogs', newLog.id), { ...newLog, userId: user.uid });
+      } catch (err) {
+        handleFirestoreError(err, 'write', `batchLogs/${newLog.id}`);
+      } finally {
+        setIsSyncing(false);
+      }
+    }
+
+    setBatchLogs(prev => [newLog, ...prev]);
+    setSelectedBatchRecipe(null);
+    alert(`Batch of ${targetVol}L ${recipe.name} logged successfully.`);
+  };
+
+  const handleDeleteBatchLog = async (id: string) => {
+    if (window.confirm("Are you sure you want to delete this batch log?")) {
+      if (user) {
+        setIsSyncing(true);
+        try {
+          await deleteDoc(doc(db, 'batchLogs', id));
+        } catch (err) {
+          handleFirestoreError(err, 'delete', `batchLogs/${id}`);
+        } finally {
+          setIsSyncing(false);
+        }
+      }
+      setBatchLogs(prev => prev.filter(l => l.id !== id));
     }
   };
 
   const syncSettings = async (updates: any) => {
     if (!user) return;
+    setIsSyncing(true);
     try {
       await setDoc(doc(db, 'settings', user.uid), { ...updates, userId: user.uid, updatedAt: Timestamp.now() }, { merge: true });
-    } catch (err) { handleFirestoreError(err, 'update', `settings/${user.uid}`); }
+    } catch (err) { 
+      handleFirestoreError(err, 'update', `settings/${user.uid}`); 
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   const handleSaveSpirit = async () => {
@@ -948,19 +1077,26 @@ export default function App() {
     const nextBottle = spiritsByBottle.filter(s => !spiritsToRemove.includes(s.name));
     
     if (user) {
-      const batch = writeBatch(db);
-      // Remove cocktails associated with these spirits
-      const cocktailsToRemove = cocktails.filter(c => spiritsToRemove.includes(c.name));
-      cocktailsToRemove.forEach(c => batch.delete(doc(db, 'cocktails', c.id)));
-      
-      // Update settings
-      batch.set(doc(db, 'settings', user.uid), {
-        spiritsByGlass45: nextGlass45,
-        spiritsByGlass30: nextGlass30,
-        spiritsByBottle: nextBottle
-      }, { merge: true });
-      
-      await batch.commit();
+      setIsSyncing(true);
+      try {
+        const batch = writeBatch(db);
+        // Remove cocktails associated with these spirits
+        const cocktailsToRemove = cocktails.filter(c => spiritsToRemove.includes(c.name));
+        cocktailsToRemove.forEach(c => batch.delete(doc(db, 'cocktails', c.id)));
+        
+        // Update settings
+        batch.set(doc(db, 'settings', user.uid), {
+          spiritsByGlass45: nextGlass45,
+          spiritsByGlass30: nextGlass30,
+          spiritsByBottle: nextBottle
+        }, { merge: true });
+        
+        await batch.commit();
+      } catch (err) {
+        handleFirestoreError(err, 'write', 'batch-remove-spirits');
+      } finally {
+        setIsSyncing(false);
+      }
     }
 
     setSpiritsByGlass45(nextGlass45);
@@ -974,9 +1110,14 @@ export default function App() {
   const handleRemoveRecipe = async (id: string) => {
     if(window.confirm(`Are you sure you want to delete this recipe?`)) {
       if (user) {
+        setIsSyncing(true);
         try {
           await deleteDoc(doc(db, 'cocktails', id));
-        } catch (err) { handleFirestoreError(err, 'delete', `cocktails/${id}`); }
+        } catch (err) { 
+          handleFirestoreError(err, 'delete', `cocktails/${id}`); 
+        } finally {
+          setIsSyncing(false);
+        }
       }
       setCocktails(prev => prev.filter(c => c.id !== id));
     }
@@ -996,8 +1137,10 @@ export default function App() {
           </div>
           <div className="flex items-center gap-2 md:gap-4">
                <div className="flex items-center gap-1.5 px-2 py-0.5 md:px-3 md:py-1 bg-zinc-900 border border-zinc-800 rounded-full">
-                  <div className={`w-1.5 h-1.5 md:w-2 md:h-2 rounded-full ${user ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]' : 'bg-amber-500'}`} />
-                  <span className="text-[8px] md:text-[10px] font-mono whitespace-nowrap">{user ? 'SYNC' : 'LOCAL'}</span>
+                  <div className={`w-1.5 h-1.5 md:w-2 md:h-2 rounded-full ${user ? (isSyncing ? 'bg-blue-500 animate-pulse' : 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]') : 'bg-amber-500'}`} />
+                  <span className="text-[8px] md:text-[10px] font-mono whitespace-nowrap">
+                    {user ? (isSyncing ? 'SYNCING...' : 'CLOUD SYNCED') : 'LOCAL MODE'}
+                  </span>
                </div>
                
                {user ? (
@@ -1025,6 +1168,7 @@ export default function App() {
               <TabsTrigger value="stock" className="text-[10px] md:text-xs py-1 px-3 data-[state=active]:bg-emerald-600 data-[state=active]:text-white">STOCK</TabsTrigger>
               <TabsTrigger value="recipe-data" className="text-[10px] md:text-xs py-1 px-3 data-[state=active]:bg-amber-600 data-[state=active]:text-white uppercase">Recipes</TabsTrigger>
               <TabsTrigger value="summary" className="text-[10px] md:text-xs py-1 px-3 data-[state=active]:bg-indigo-600 data-[state=active]:text-white">HISTORY</TabsTrigger>
+              <TabsTrigger value="batching" className="text-[10px] md:text-xs py-1 px-3 data-[state=active]:bg-orange-600 data-[state=active]:text-white uppercase">Batching</TabsTrigger>
               <TabsTrigger value="beverage-order" className="text-[10px] md:text-xs py-1 px-3 data-[state=active]:bg-rose-600 data-[state=active]:text-white uppercase">Analytics</TabsTrigger>
             </TabsList>
 
@@ -1122,21 +1266,32 @@ export default function App() {
                   <h2 className="text-xl md:text-2xl font-bold uppercase tracking-tight text-white">Recipe Book</h2>
                   <p className="text-[10px] md:text-sm text-zinc-500">Inventory and recipe management</p>
                 </div>
-                <Button 
-                  onClick={() => {
-                    setEditingRecipe(null);
-                    setRecipeName('');
-                    setRecipeIngredients([]);
-                    setIsRecipeDialogOpen(true);
-                  }}
-                  className="w-full sm:w-auto bg-amber-600 hover:bg-amber-700 rounded-xl md:rounded-2xl h-12 md:h-14 px-6 md:px-8 font-bold gap-2 text-xs md:text-md"
-                >
-                  <Plus className="w-4 h-4 md:w-5 md:h-5" /> NEW RECIPE
-                </Button>
+                <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
+                  <div className="relative w-full sm:w-64">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                    <Input 
+                      placeholder="Search recipes..." 
+                      value={recipeSearchQuery}
+                      onChange={(e) => setRecipeSearchQuery(e.target.value)}
+                      className="pl-10 h-12 md:h-14 bg-zinc-950 border-zinc-800 rounded-xl md:rounded-2xl text-xs md:text-sm"
+                    />
+                  </div>
+                  <Button 
+                    onClick={() => {
+                      setEditingRecipe(null);
+                      setRecipeName('');
+                      setRecipeIngredients([]);
+                      setIsRecipeDialogOpen(true);
+                    }}
+                    className="w-full sm:w-auto bg-amber-600 hover:bg-amber-700 rounded-xl md:rounded-2xl h-12 md:h-14 px-6 md:px-8 font-bold gap-2 text-xs md:text-md"
+                  >
+                    <Plus className="w-4 h-4 md:w-5 md:h-5" /> NEW RECIPE
+                  </Button>
+                </div>
               </Card>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-                 {cocktails.map(recipe => (
+                 {filteredCocktails.map(recipe => (
                    <Card key={recipe.id} className="bg-zinc-950 border-zinc-800 p-4 md:p-6 rounded-2xl md:rounded-[32px] hover:border-amber-500/50 transition-all group overflow-hidden relative">
                       <div className="absolute top-2 right-2 flex gap-1 md:opacity-0 group-hover:opacity-100 transition-opacity">
                          <Button 
@@ -1177,49 +1332,76 @@ export default function App() {
             </TabsContent>
 
             <TabsContent value="stock" className="space-y-6 m-0">
-               <div className="flex justify-between items-center bg-zinc-900 p-4 rounded-2xl border border-zinc-800">
-                  <div>
+               <div className="flex flex-col md:flex-row justify-between items-center bg-zinc-900 p-4 rounded-2xl border border-zinc-800 gap-4">
+                  <div className="text-center md:text-left">
                     <h2 className="text-xl font-bold uppercase tracking-tight">Ingredient Inventory</h2>
                     <p className="text-xs text-zinc-500">Update current stock levels based on bottles on hand</p>
                   </div>
-                  <Button onClick={() => setIsSpiritDialogOpen(true)} className="bg-emerald-600 hover:bg-emerald-700 rounded-xl px-6 gap-2">
-                    <Plus className="w-4 h-4" /> ADD OR DELIST SPIRIT
-                  </Button>
-               </div>
-               <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 m-0">
-               <Card className="lg:col-span-3 bg-zinc-900 border-zinc-800 p-6">
-                  <h2 className="text-xl font-bold mb-6 uppercase tracking-tight">Initial Stock Setup</h2>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                     {sortedStock.map(s => {
-                       const size = getBottleSize(s.ingredientName);
-                       return (
-                         <div key={s.ingredientName} className="p-3 bg-zinc-950 border border-zinc-800 rounded-xl flex items-center justify-between">
-                            <span className="text-xs font-medium">{getExcelDisplayName(s.ingredientName)}</span>
-                            <div className="flex items-center gap-2">
-                               <Input type="number" step="0.1" value={s.initialMl/size || ''} onChange={e => updateStock(s.ingredientName, (parseFloat(e.target.value)||0)*size)} className="w-20 text-right font-mono text-xs bg-zinc-900 border-zinc-800" />
-                               <span className="text-[10px] text-zinc-600">BTL</span>
-                            </div>
-                         </div>
-                       )
-                     })}
+                  <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+                     <div className="relative w-full sm:w-64">
+                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                       <Input 
+                         placeholder="Search ingredients..." 
+                         value={stockSearchQuery}
+                         onChange={(e) => setStockSearchQuery(e.target.value)}
+                         className="pl-10 bg-zinc-950 border-zinc-800 rounded-xl h-11 md:h-12"
+                       />
+                     </div>
+                     <Button onClick={() => setIsSpiritDialogOpen(true)} className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 rounded-xl px-6 h-11 md:h-12 gap-2 font-bold text-xs uppercase">
+                       <Plus className="w-4 h-4" /> ADD OR DELIST SPIRIT
+                     </Button>
                   </div>
-               </Card>
-               <Card className="bg-zinc-900 border-zinc-800 p-6 h-fit sticky top-0">
-                  <h2 className="text-xs uppercase tracking-widest text-zinc-500 mb-6">STOCK HEALTH</h2>
-                  <ScrollArea className="h-[600px] pr-4">
-                    <div className="space-y-4">
-                      {sortedStockStatus.map(s => {
-                        const bSize = getBottleSize(s.ingredientName);
+               </div>
+
+               <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 m-0">
+                 <Card className="lg:col-span-3 bg-zinc-900 border-zinc-800 p-6">
+                   <h2 className="text-xl font-bold mb-6 uppercase tracking-tight">Initial Stock Setup</h2>
+                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {sortedStock.map(s => {
+                        const size = getBottleSize(s.ingredientName);
                         return (
-                          <div key={s.ingredientName} className="space-y-1">
-                             <div className="flex justify-between text-[10px] uppercase"><span className="text-zinc-400">{getExcelDisplayName(s.ingredientName)}</span><span className={s.isLow ? 'text-red-500 font-bold' : 'text-emerald-500'}>{(s.remaining/bSize).toFixed(1)} left</span></div>
-                             <div className="h-1 bg-black rounded-full overflow-hidden"><motion.div initial={{ width: 0 }} animate={{ width: `${Math.max(0, Math.min(100, s.percentage))}%` }} className={`h-full ${s.isLow ? 'bg-red-500' : 'bg-emerald-500'}`} /></div>
+                          <div key={s.ingredientName} className="p-3 bg-zinc-950 border border-zinc-800 rounded-xl flex items-center justify-between">
+                             <span className="text-xs font-medium">{getExcelDisplayName(s.ingredientName)}</span>
+                             <div className="flex items-center gap-2">
+                                <Input type="number" step="0.1" value={s.initialMl/size || ''} onChange={e => updateStock(s.ingredientName, (parseFloat(e.target.value)||0)*size)} className="w-20 text-right font-mono text-xs bg-zinc-900 border-zinc-800 h-8" />
+                                <span className="text-[10px] text-zinc-600">BTL</span>
+                             </div>
                           </div>
-                      )})}
-                    </div>
-                  </ScrollArea>
-               </Card>
-             </div>
+                        )
+                      })}
+                      {sortedStock.length === 0 && (
+                        <div className="col-span-full py-12 text-center text-zinc-600">
+                          <Search className="mx-auto mb-4 w-12 h-12 opacity-10" />
+                          <p className="uppercase text-xs tracking-widest">No ingredients found</p>
+                        </div>
+                      )}
+                   </div>
+                 </Card>
+                 
+                 <Card className="bg-zinc-900 border-zinc-800 p-6 h-fit sticky top-0">
+                   <h2 className="text-xs uppercase tracking-widest text-zinc-500 mb-6">STOCK HEALTH</h2>
+                   <ScrollArea className="h-[600px] pr-4">
+                     <div className="space-y-4">
+                       {sortedStockStatus.map(s => {
+                         const bSize = getBottleSize(s.ingredientName);
+                         return (
+                           <div key={s.ingredientName} className="space-y-1">
+                              <div className="flex justify-between text-[10px] uppercase font-mono">
+                                <span className="text-zinc-400 truncate pr-2">{getExcelDisplayName(s.ingredientName)}</span>
+                                <span className={s.isLow ? 'text-red-500 font-bold shrink-0' : 'text-emerald-500 shrink-0'}>{(s.remaining/bSize).toFixed(1)} left</span>
+                              </div>
+                              <div className="h-1 bg-black rounded-full overflow-hidden">
+                                <motion.div initial={{ width: 0 }} animate={{ width: `${Math.max(0, Math.min(100, s.percentage))}%` }} className={`h-full ${s.isLow ? 'bg-red-500' : 'bg-emerald-500'}`} />
+                              </div>
+                           </div>
+                       )})}
+                       {sortedStockStatus.length === 0 && (
+                         <p className="text-[10px] text-zinc-700 text-center py-4 uppercase">No results</p>
+                       )}
+                     </div>
+                   </ScrollArea>
+                 </Card>
+               </div>
             </TabsContent>
 
             <TabsContent value="summary" className="m-0 space-y-6 pb-20">
@@ -1448,9 +1630,195 @@ export default function App() {
                  </div>
               </div>
             </TabsContent>
+
+            <TabsContent value="batching" className="m-0 space-y-6 pb-20">
+              <div className="flex flex-col md:flex-row justify-between items-center bg-zinc-900 border border-zinc-800 p-6 rounded-[32px] gap-4">
+                <div>
+                  <h2 className="text-2xl font-bold uppercase tracking-tight text-orange-500">Signature Batching</h2>
+                  <p className="text-sm text-zinc-500">Scale signature recipes for bulk preparation</p>
+                </div>
+                <div className="relative w-full md:w-64">
+                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                   <Input 
+                     placeholder="Search batch recipes..." 
+                     value={batchSearchQuery}
+                     onChange={e => setBatchSearchQuery(e.target.value)}
+                     className="pl-10 bg-zinc-950 border-zinc-800 rounded-2xl h-12"
+                   />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 space-y-6">
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {batchRecipes
+                        .filter(r => r.name.toLowerCase().includes(batchSearchQuery.toLowerCase()))
+                        .map(recipe => (
+                          <Card 
+                            key={recipe.id} 
+                            onClick={() => {
+                              setSelectedBatchRecipe(recipe);
+                              setBatchVolumeInput(recipe.baseVolume.toString());
+                            }}
+                            className="bg-zinc-900 border-zinc-800 p-6 rounded-[32px] hover:border-orange-500/50 transition-all cursor-pointer group relative overflow-hidden"
+                          >
+                             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-30 transition-opacity">
+                               <RefreshCcw className="w-12 h-12 text-orange-500" />
+                             </div>
+                             <h3 className="text-xl font-bold text-white uppercase tracking-tight mb-2">{recipe.name}</h3>
+                             <div className="flex items-center gap-2 mb-4">
+                               <Badge variant="outline" className="bg-orange-500/10 text-orange-400 border-none uppercase text-[10px]">
+                                 Mother Data: {recipe.baseVolume}L
+                               </Badge>
+                             </div>
+                             <div className="space-y-1">
+                                {recipe.ingredients.slice(0, 3).map((ing, idx) => (
+                                  <p key={idx} className="text-[10px] text-zinc-500 uppercase truncate">• {ing.name}</p>
+                                ))}
+                                {recipe.ingredients.length > 3 && <p className="text-[10px] text-zinc-600 italic">+{recipe.ingredients.length - 3} more ingredients</p>}
+                             </div>
+                          </Card>
+                      ))}
+                   </div>
+                </div>
+
+                <div className="space-y-6">
+                   <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 ml-2">Batch Production Log</h3>
+                   <ScrollArea className="h-[600px] pr-4">
+                      <div className="space-y-3">
+                         {batchLogs.length === 0 ? (
+                           <Card className="bg-zinc-900 border-zinc-800 p-12 text-center text-zinc-700 rounded-[32px]">
+                             <p className="text-[10px] uppercase">No batches logged yet</p>
+                           </Card>
+                         ) : batchLogs.map(log => (
+                           <Card key={log.id} className="bg-zinc-900 border-zinc-800 p-4 rounded-2xl group">
+                              <div className="flex justify-between items-start mb-2">
+                                 <div>
+                                    <p className="text-xs font-bold text-white uppercase">{log.recipeName}</p>
+                                    <p className="text-[10px] text-zinc-500">{formatDate(log.timestamp)}</p>
+                                 </div>
+                                 <Badge className="bg-orange-600 text-white border-none">{log.targetVolume}L</Badge>
+                              </div>
+                              <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                                 <Button 
+                                   variant="ghost" 
+                                   size="icon" 
+                                   onClick={() => handleDeleteBatchLog(log.id)}
+                                   className="h-6 w-6 text-zinc-600 hover:text-red-500"
+                                 >
+                                   <Trash2 className="w-3.5 h-3.5" />
+                                 </Button>
+                              </div>
+                           </Card>
+                         ))}
+                      </div>
+                   </ScrollArea>
+                </div>
+              </div>
+            </TabsContent>
           </Tabs>
         </main>
       </div>
+
+      <Dialog open={!!selectedBatchRecipe} onOpenChange={open => !open && setSelectedBatchRecipe(null)}>
+        <DialogContent className="bg-zinc-950 border-zinc-900 text-white max-w-2xl rounded-[32px] p-0 overflow-hidden">
+           <div className="bg-orange-600 p-8 flex justify-between items-end">
+              <div>
+                 <p className="text-[10px] uppercase font-bold tracking-widest text-orange-200 mb-1">Scaling Calculator</p>
+                 <h2 className="text-3xl font-bold uppercase tracking-tighter">{selectedBatchRecipe?.name}</h2>
+              </div>
+              <div className="text-right">
+                 <p className="text-[10px] uppercase font-bold text-orange-200">Mother Data</p>
+                 <p className="text-xl font-mono font-bold">{selectedBatchRecipe?.baseVolume}L</p>
+              </div>
+           </div>
+
+           <ScrollArea className="max-h-[70vh] p-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                 <div className="space-y-6">
+                    <div>
+                       <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2 block">Target Batch Volume (Liters)</label>
+                       <div className="flex items-center gap-4 bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
+                          <input 
+                            type="number" 
+                            step="0.5"
+                            value={batchVolumeInput} 
+                            onChange={e => setBatchVolumeInput(e.target.value)}
+                            className="text-4xl font-mono font-bold bg-transparent border-none focus:ring-0 w-full outline-none"
+                          />
+                          <span className="text-xl font-bold text-zinc-700">L</span>
+                       </div>
+                    </div>
+
+                    <div className="space-y-4">
+                       <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Scaled Ingredients</h3>
+                       <div className="space-y-2">
+                          {selectedBatchRecipe && selectedBatchRecipe.ingredients.map((ing, i) => {
+                             const ratio = parseFloat(batchVolumeInput || "0") / selectedBatchRecipe.baseVolume;
+                             const scaledMl = ing.ml * ratio;
+                             const scaledOz = scaledMl * ML_TO_OZ;
+
+                             // Find bottle size if linked
+                             let bottleSize = 750;
+                             const excelItem = initialExcelOrder.find(item => item.includes(ing.name));
+                             if (excelItem) {
+                                const match = excelItem.match(/(\d+)\s*ml/i);
+                                if (match) bottleSize = parseInt(match[1]);
+                             }
+                             const bottles = scaledMl / bottleSize;
+
+                             return (
+                               <div key={i} className="flex justify-between items-center bg-zinc-900/50 p-3 rounded-xl border border-zinc-800/30">
+                                  <div>
+                                     <p className="text-xs font-bold text-white uppercase">{ing.name}</p>
+                                     <p className="text-[10px] text-emerald-500 font-mono">
+                                       {bottles.toFixed(2)} BTLS ({bottleSize}ML UNIT)
+                                     </p>
+                                  </div>
+                                  <div className="text-right">
+                                     <p className="text-sm font-bold font-mono text-zinc-200">{scaledMl.toFixed(0)} ml</p>
+                                     <p className="text-[10px] font-mono text-zinc-600">{scaledOz.toFixed(1)} oz</p>
+                                  </div>
+                               </div>
+                             );
+                          })}
+                       </div>
+                    </div>
+                 </div>
+
+                 <div className="space-y-6">
+                    <h3 className="text-[10px] font-bold uppercase tracking-widest text-orange-500">Method & Steps</h3>
+                    <div className="space-y-4">
+                       {selectedBatchRecipe?.steps.map((step, i) => (
+                         <div key={i} className="flex gap-4 group">
+                            <div className="w-6 h-6 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-[10px] font-bold text-zinc-500 shrink-0 group-hover:border-orange-500/50 transition-colors">{i+1}</div>
+                            <p className="text-xs text-zinc-400 leading-relaxed pt-1">{step}</p>
+                         </div>
+                       ))}
+                    </div>
+                    
+                    <div className="p-4 bg-zinc-900 rounded-2xl border border-purple-500/20 flex gap-4 items-center">
+                       <Zap className="text-purple-500 w-5 h-5 shrink-0" />
+                       <p className="text-[10px] text-zinc-500 italic">Ingredient quantities are auto-scaled from 20L/10L mother data templates.</p>
+                    </div>
+                 </div>
+              </div>
+
+              <DialogFooter className="sticky bottom-0 bg-zinc-950 pt-4 border-t border-zinc-900">
+                 <Button 
+                   onClick={() => {
+                     if (selectedBatchRecipe && batchVolumeInput) {
+                       handleCreateBatch(selectedBatchRecipe, parseFloat(batchVolumeInput));
+                     }
+                   }}
+                   className="w-full h-16 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-2xl text-lg uppercase tracking-tight shadow-xl shadow-orange-950/20"
+                 >
+                   CONFIRM BATCH COMPLETE & LOG PRODUCTION
+                 </Button>
+              </DialogFooter>
+           </ScrollArea>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!selectedCocktail} onOpenChange={open => !open && setSelectedCocktail(null)}>
         <DialogContent className="bg-zinc-900 border-zinc-800 text-white max-w-sm rounded-[32px] p-8">
@@ -1565,9 +1933,14 @@ export default function App() {
               onClick={async () => {
                 if (logToDelete) {
                   if (user) {
+                    setIsSyncing(true);
                     try {
                       await deleteDoc(doc(db, 'logs', logToDelete));
-                    } catch (err) { handleFirestoreError(err, 'delete', `logs/${logToDelete}`); }
+                    } catch (err) { 
+                      handleFirestoreError(err, 'delete', `logs/${logToDelete}`); 
+                    } finally {
+                      setIsSyncing(false);
+                    }
                   }
                   setLogs(prev => prev.filter(l => l.date !== logToDelete));
                   setLogToDelete(null);

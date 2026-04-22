@@ -58,9 +58,16 @@ export function handleFirestoreError(error: any, operationType: FirestoreErrorIn
 async function testConnection() {
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.error("Firebase is offline. Check your network or Firebase configuration.");
+    console.log("Firestore connection verified.");
+  } catch (error: any) {
+    if (error.code === 'unavailable' || (error.message && error.message.includes('the client is offline'))) {
+      console.warn("Firestore appears offline. Attempting to enable network...");
+      try {
+        await enableNetwork(db);
+        console.log("Firestore network enabled.");
+      } catch (e) {
+        console.error("Failed to enable Firestore network:", e);
+      }
     }
     // Note: 'Missing or insufficient permissions' is expected for this test doc 
     // and actually confirms the connection reached the Firestore server correctly.
