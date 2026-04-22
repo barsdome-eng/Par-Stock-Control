@@ -9,6 +9,7 @@
   --color-text-dim: #8e8e9e;
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
+  --animate-spin-slow: spin 3s linear infinite;
 }
 
 @layer base {

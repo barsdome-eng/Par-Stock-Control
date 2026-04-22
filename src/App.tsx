@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Search, Calculator, Trash2, ChevronRight, ChevronDown, GlassWater, Info, Package, AlertTriangle, CheckCircle2, User as UserIcon, Bot, Zap, Sparkles, RefreshCcw, Plus, LogOut, LogIn, Cloud, CloudOff } from 'lucide-react';
+import { Search, Calculator, Trash2, ChevronRight, ChevronDown, GlassWater, Info, Package, AlertTriangle, CheckCircle2, User as UserIcon, Bot, Zap, Sparkles, RefreshCcw, Plus, LogOut, LogIn, Cloud, CloudOff, AlarmClock, ArrowLeft, Timer as TimerIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, auth, signIn, logOut, handleFirestoreError } from './lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
@@ -34,7 +34,7 @@ import {
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Cocktail, UsageRecord, StockLevel, DailyLog, Ingredient, BatchRecipe, BatchLog } from './types';
+import { Cocktail, UsageRecord, StockLevel, DailyLog, Ingredient, BatchRecipe, BatchLog, ActiveBatch, BatchTimer } from './types';
 import { cocktails as initialCocktails, spiritsByGlass45 as initialGlass45, spiritsByGlass30 as initialGlass30, spiritsByBottle as initialBottle } from './data/cocktails';
 import { initialBatchRecipes } from './data/batchRecipes';
 
@@ -330,6 +330,13 @@ export default function App() {
     return cached ? JSON.parse(cached) : [];
   });
 
+  const [activeBatch, setActiveBatch] = useState<ActiveBatch | null>(() => {
+    const cached = localStorage.getItem('skybar_active_batch_v1');
+    return cached ? JSON.parse(cached) : null;
+  });
+
+  const [timerTick, setTimerTick] = useState(0);
+
   // Generated items
   const fullCocktailList = useMemo(() => {
     const glass45 = spiritsByGlass45.map(name => ({
@@ -452,6 +459,117 @@ export default function App() {
   useEffect(() => localStorage.setItem('skybar_mapping_v1', JSON.stringify(spiritMapping)), [spiritMapping]);
   useEffect(() => localStorage.setItem('skybar_batch_recipes_v1', JSON.stringify(batchRecipes)), [batchRecipes]);
   useEffect(() => localStorage.setItem('skybar_batch_logs_v1', JSON.stringify(batchLogs)), [batchLogs]);
+  useEffect(() => localStorage.setItem('skybar_active_batch_v1', JSON.stringify(activeBatch)), [activeBatch]);
+
+  // Audio for alarm
+  const playAlarm = () => {
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(880, audioContext.currentTime); // A5 note
+    
+    gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+    gainNode.gain.linearRampToValueAtTime(0.5, audioContext.currentTime + 0.1);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 1);
+
+    oscillator.start();
+    oscillator.stop(audioContext.currentTime + 1);
+
+    // Try to trigger vibration as well
+    if ('vibrate' in navigator) {
+      navigator.vibrate([200, 100, 200]);
+    }
+
+    // Show browser notification
+    if ("Notification" in window && Notification.permission === "granted") {
+      new Notification("Batching Alert", {
+        body: "Infusion timer finished!",
+        icon: "/favicon.ico"
+      });
+    }
+  };
+
+  // Timer Tick & State Maintenance useEffect
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!activeBatch) return;
+      
+      // Update visual tick
+      setTimerTick(t => t + 1);
+
+      if (activeBatch.timers.length === 0) return;
+
+      const now = Date.now();
+      const expiredTimers = activeBatch.timers.filter(t => now >= t.endTime);
+      
+      if (expiredTimers.length > 0) {
+        playAlarm();
+        // Remove expired timers from state
+        setActiveBatch(prev => {
+          if (!prev) return null;
+          const stillActive = prev.timers.filter(t => now < t.endTime);
+          // Only update if something actually changed to avoid infinite pulses
+          if (stillActive.length === prev.timers.length) return prev;
+          return {
+            ...prev,
+            timers: stillActive
+          };
+        });
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [activeBatch]);
+
+  // Request notification permission on mount
+  useEffect(() => {
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  }, []);
+
+  const startBatch = (recipe: BatchRecipe, volume: number) => {
+    setActiveBatch({
+      recipeId: recipe.id,
+      currentStep: 0,
+      targetVolume: volume,
+      startTime: Date.now(),
+      timers: []
+    });
+  };
+
+  const setStepTimer = (minutes: number, label: string) => {
+    if (!activeBatch) return;
+    
+    // Check for existing timer with same label to avoid duplicates
+    if (activeBatch.timers.some(t => t.label === label)) return;
+
+    const newTimer: BatchTimer = {
+      id: Math.random().toString(36).substr(2, 9),
+      label,
+      endTime: Date.now() + minutes * 60 * 1000
+    };
+
+    setActiveBatch(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        timers: [...prev.timers, newTimer]
+      };
+    });
+    
+    alert("Press OK to set alarm and continue with next steps, no need to wait until infusion is done.");
+  };
+
+  const getStepInfusionTime = (step: string): number | null => {
+    const match = step.match(/(\d+)\s*(?:minute|minutes|min|mins)/i);
+    return match ? parseInt(match[1]) : null;
+  };
 
   // Keep tracking logs in local storage as well
   const [logs, setLogs] = useState<DailyLog[]>(() => {
@@ -1237,7 +1355,10 @@ export default function App() {
                         </div>
                       ) : (
                         <ScrollArea className="h-40 md:h-64 pr-2">
-                          {stockStatus.filter(s => s.used > 0).map(s => (
+                          {[...stockStatus]
+                            .filter(s => s.used > 0)
+                            .sort((a, b) => getExcelSortIndex(a.ingredientName) - getExcelSortIndex(b.ingredientName))
+                            .map(s => (
                             <div key={s.ingredientName} className="flex justify-between py-2 border-b border-zinc-800 last:border-0 items-center">
                                <span className="text-[10px] md:text-xs text-zinc-300 truncate max-w-[150px]">{getExcelDisplayName(s.ingredientName)}</span>
                                <span className="font-mono text-blue-400 font-bold text-xs">{(s.used * ML_TO_OZ).toFixed(1)} oz</span>
@@ -1721,8 +1842,135 @@ export default function App() {
       </div>
 
       <Dialog open={!!selectedBatchRecipe} onOpenChange={open => !open && setSelectedBatchRecipe(null)}>
-        <DialogContent className="bg-zinc-950 border-zinc-900 text-white max-w-2xl rounded-[32px] p-0 overflow-hidden">
-           <div className="bg-orange-600 p-8 flex justify-between items-end">
+        <DialogContent className="bg-zinc-950 border-zinc-900 text-white max-w-2xl rounded-[32px] p-0 overflow-hidden shadow-2xl">
+           {selectedBatchRecipe && activeBatch?.recipeId === selectedBatchRecipe.id ? (
+             // Step by Step Mode
+             <div className="flex flex-col h-[85vh]">
+                <div className="bg-orange-600 p-6 flex flex-col gap-2">
+                   <div className="flex justify-between items-center">
+                      <Button variant="ghost" size="icon" onClick={() => setSelectedBatchRecipe(null)} className="text-white hover:bg-orange-500 rounded-full h-8 w-8">
+                        <ArrowLeft className="w-5 h-5" />
+                      </Button>
+                      <Badge variant="outline" className="border-orange-300 text-white font-mono bg-orange-700/30">
+                        {activeBatch.targetVolume}L Production
+                      </Badge>
+                   </div>
+                   <h2 className="text-xl md:text-2xl font-bold uppercase tracking-tight">{selectedBatchRecipe.name}</h2>
+                   <div className="flex gap-1 h-1.5 bg-orange-800 rounded-full mt-2 overflow-hidden">
+                      {selectedBatchRecipe.steps.map((_, i) => (
+                        <div key={i} className={`flex-1 h-full ${i <= activeBatch.currentStep ? 'bg-white' : 'bg-orange-900/50'}`} />
+                      ))}
+                   </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-6 md:p-10">
+                   <AnimatePresence mode="wait">
+                      <motion.div 
+                        key={activeBatch.currentStep}
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -20 }}
+                        className="space-y-8"
+                      >
+                         <div className="space-y-2">
+                            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">Current Step {activeBatch.currentStep + 1} of {selectedBatchRecipe.steps.length}</p>
+                            <h3 className="text-lg md:text-xl font-medium leading-relaxed text-zinc-100">
+                               {selectedBatchRecipe.steps[activeBatch.currentStep]}
+                            </h3>
+                         </div>
+
+                         {getStepInfusionTime(selectedBatchRecipe.steps[activeBatch.currentStep]) && (
+                           <div className="p-6 bg-blue-600/10 border border-blue-500/20 rounded-2xl flex flex-col items-center gap-4">
+                              <AlarmClock className="w-10 h-10 text-blue-400" />
+                              <div className="text-center">
+                                 <p className="text-sm font-bold text-blue-400 uppercase">Timer Required</p>
+                                 <p className="text-xs text-zinc-500 mt-1">This step involves infusion. You can set a timer and continue to next steps.</p>
+                              </div>
+                              <Button 
+                                onClick={() => setStepTimer(getStepInfusionTime(selectedBatchRecipe.steps[activeBatch.currentStep])!, selectedBatchRecipe.steps[activeBatch.currentStep])}
+                                className="w-full bg-blue-600 hover:bg-blue-700 font-bold rounded-xl"
+                              >
+                                START {getStepInfusionTime(selectedBatchRecipe.steps[activeBatch.currentStep])} MIN TIMER
+                              </Button>
+                           </div>
+                         )}
+
+                         <div className="pt-8 space-y-4">
+                            <h4 className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Refer to Scaled Ingredients</h4>
+                            <div className="grid grid-cols-1 gap-2 max-h-40 overflow-y-auto pr-2 scrollbar-thin">
+                               {(() => {
+                                 const stepText = selectedBatchRecipe.steps[activeBatch.currentStep].toLowerCase();
+                                 const relevantIngredients = selectedBatchRecipe.ingredients.filter(ing => 
+                                   stepText.includes(ing.name.toLowerCase()) || 
+                                   // Also check partial matches for common short-hands (e.g. "Bacardi" instead of "Bacardi Carta Blanca")
+                                   ing.name.toLowerCase().split(' ').some(word => word.length > 3 && stepText.includes(word))
+                                 );
+
+                                 if (relevantIngredients.length === 0) return <p className="text-[10px] text-zinc-600 italic">No specific ingredients mentioned for this step.</p>;
+
+                                 return relevantIngredients.map((ing, i) => {
+                                    const ratio = activeBatch.targetVolume / selectedBatchRecipe.baseVolume;
+                                    return (
+                                      <div key={i} className="flex justify-between items-center py-2 px-3 bg-zinc-900 rounded-lg border border-zinc-800/50">
+                                         <span className="text-[10px] uppercase text-zinc-300 truncate pr-4">{ing.name}</span>
+                                         <span className="text-xs font-mono font-bold text-orange-400">{(ing.ml * ratio).toLocaleString()}ml</span>
+                                      </div>
+                                    );
+                                 });
+                               })()}
+                            </div>
+                         </div>
+                      </motion.div>
+                   </AnimatePresence>
+                </div>
+
+                <div className="p-6 md:p-8 bg-zinc-950 border-t border-zinc-900 flex flex-col gap-3">
+                   {activeBatch.currentStep < selectedBatchRecipe.steps.length - 1 ? (
+                     <Button 
+                       onClick={() => setActiveBatch(prev => prev ? { ...prev, currentStep: prev.currentStep + 1 } : null)}
+                       className="w-full h-16 bg-white text-black hover:bg-zinc-200 font-bold rounded-2xl text-lg uppercase tracking-tight shadow-xl"
+                     >
+                       Step Finished <ChevronRight className="ml-2 w-5 h-5" />
+                     </Button>
+                   ) : (
+                     <Button 
+                       onClick={() => {
+                         handleCreateBatch(selectedBatchRecipe, activeBatch.targetVolume);
+                         setActiveBatch(null);
+                         setSelectedBatchRecipe(null);
+                       }}
+                       className="w-full h-16 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-2xl text-lg uppercase tracking-tight shadow-xl shadow-orange-900/30"
+                     >
+                       Finish Batch & Log Production
+                     </Button>
+                   )}
+                   
+                   <div className="grid grid-cols-2 gap-4">
+                      {activeBatch.currentStep > 0 && (
+                        <Button 
+                          variant="outline" 
+                          onClick={() => setActiveBatch(prev => prev ? { ...prev, currentStep: prev.currentStep - 1 } : null)}
+                          className="h-10 border-zinc-800 text-zinc-400 hover:text-white rounded-xl text-[10px] font-bold uppercase"
+                        >
+                          <ArrowLeft className="w-3 h-3 mr-2" /> Previous Step
+                        </Button>
+                      )}
+                      <Button 
+                        variant="ghost" 
+                        onClick={() => setActiveBatch(null)} 
+                        className={`h-10 text-zinc-600 hover:text-red-500 hover:bg-red-500/10 text-[10px] uppercase font-bold col-span-${activeBatch.currentStep > 0 ? '1' : '2'}`}
+                      >
+                        Cancel Batch
+                      </Button>
+                   </div>
+                </div>
+             </div>
+           ) : (
+             <>
+               <DialogHeader className="sr-only">
+                  <DialogTitle>{selectedBatchRecipe?.name} Calculator</DialogTitle>
+               </DialogHeader>
+               <div className="bg-orange-600 p-8 flex justify-between items-end">
               <div>
                  <p className="text-[10px] uppercase font-bold tracking-widest text-orange-200 mb-1">Scaling Calculator</p>
                  <h2 className="text-3xl font-bold uppercase tracking-tighter">{selectedBatchRecipe?.name}</h2>
@@ -1804,21 +2052,35 @@ export default function App() {
                  </div>
               </div>
 
-              <DialogFooter className="sticky bottom-0 bg-zinc-950 pt-4 border-t border-zinc-900">
+              <DialogFooter className="sticky bottom-0 bg-zinc-950 pt-4 border-t border-zinc-900 flex flex-col gap-2">
                  <Button 
                    onClick={() => {
                      if (selectedBatchRecipe && batchVolumeInput) {
-                       handleCreateBatch(selectedBatchRecipe, parseFloat(batchVolumeInput));
+                       startBatch(selectedBatchRecipe, parseFloat(batchVolumeInput));
                      }
                    }}
-                   className="w-full h-16 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-2xl text-lg uppercase tracking-tight shadow-xl shadow-orange-950/20"
+                   className="w-full h-16 bg-white text-black hover:bg-zinc-200 font-bold rounded-2xl text-lg uppercase tracking-tight shadow-xl"
                  >
-                   CONFIRM BATCH COMPLETE & LOG PRODUCTION
+                   START MAKING THIS BATCH <ChevronRight className="ml-2 w-5 h-5" />
+                 </Button>
+                 <Button 
+                   variant="ghost"
+                   onClick={() => {
+                     if (selectedBatchRecipe && batchVolumeInput) {
+                       handleCreateBatch(selectedBatchRecipe, parseFloat(batchVolumeInput));
+                       setSelectedBatchRecipe(null);
+                     }
+                   }}
+                   className="w-full h-10 text-zinc-500 hover:text-orange-500 font-bold rounded-xl text-xs uppercase"
+                 >
+                   Confirm Complete (Skip Steps)
                  </Button>
               </DialogFooter>
            </ScrollArea>
-        </DialogContent>
-      </Dialog>
+         </>
+       )}
+   </DialogContent>
+</Dialog>
 
       <Dialog open={!!selectedCocktail} onOpenChange={open => !open && setSelectedCocktail(null)}>
         <DialogContent className="bg-zinc-900 border-zinc-800 text-white max-w-sm rounded-[32px] p-8">
@@ -2104,6 +2366,51 @@ export default function App() {
           </div>
         </DialogContent>
       </Dialog>
+      {activeBatch && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] w-[95vw] max-w-sm">
+           <motion.div 
+             initial={{ y: 50, opacity: 0 }}
+             animate={{ y: 0, opacity: 1 }}
+             className="bg-zinc-900 border border-orange-500/30 rounded-3xl p-4 shadow-2xl flex items-center gap-4 cursor-pointer hover:border-orange-500 transition-colors group"
+             onClick={() => {
+               const recipe = batchRecipes.find(r => r.id === activeBatch.recipeId);
+               if (recipe) {
+                  setSelectedBatchRecipe(recipe);
+                  setBatchVolumeInput(activeBatch.targetVolume.toString());
+               }
+             }}
+           >
+              <div className="w-12 h-12 bg-orange-600 rounded-2xl flex items-center justify-center shrink-0 relative overflow-hidden">
+                 <RefreshCcw className="w-6 h-6 text-white animate-spin-slow" />
+                 <div className="absolute inset-0 bg-black/20 flex items-center justify-center text-[10px] font-bold">
+                    {Math.round(((activeBatch.currentStep + 1) / (batchRecipes.find(r => r.id === activeBatch.recipeId)?.steps.length || 1)) * 100)}%
+                 </div>
+              </div>
+              <div className="flex-1 min-w-0">
+                 <p className="text-[10px] uppercase font-bold text-orange-500 tracking-widest">Active Batch</p>
+                 <h4 className="text-sm font-bold text-white truncate uppercase">{batchRecipes.find(r => r.id === activeBatch.recipeId)?.name}</h4>
+                 
+                 {activeBatch.timers.length > 0 && (
+                   <div className="mt-1 flex items-center gap-2">
+                      <TimerIcon className="w-3 h-3 text-blue-400 animate-pulse" />
+                      <span className="text-[10px] font-mono text-blue-300">
+                        {(() => {
+                           const soonest = Math.min(...activeBatch.timers.map(t => t.endTime));
+                           const remaining = Math.max(0, soonest - Date.now());
+                           const mm = Math.floor(remaining / 60000);
+                           const ss = Math.floor((remaining % 60000) / 1000);
+                           return `${mm}:${ss.toString().padStart(2, '0')} Alert Soon`;
+                        })()}
+                      </span>
+                   </div>
+                 )}
+              </div>
+              <div className="shrink-0 p-2 bg-zinc-800 rounded-xl group-hover:bg-orange-500 transition-colors">
+                 <ChevronRight className="w-4 h-4 text-zinc-500 group-hover:text-white" />
+              </div>
+           </motion.div>
+        </div>
+      )}
     </div>
   );
 }

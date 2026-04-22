@@ -50,3 +50,17 @@ export interface InventoryState {
   stock: StockLevel[];
   logs: DailyLog[];
 }
+
+export interface BatchTimer {
+  id: string;
+  label: string;
+  endTime: number; // timestamp
+}
+
+export interface ActiveBatch {
+  recipeId: string;
+  currentStep: number;
+  targetVolume: number;
+  startTime: number;
+  timers: BatchTimer[];
+}

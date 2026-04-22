@@ -5,11 +5,14 @@ import './index.css';
 
 // Fix for frequent ResizeObserver loop errors in modern browsers
 if (typeof window !== 'undefined') {
-  const isResizeObserverError = (msg: string) => 
-    msg === 'ResizeObserver loop completed with undelivered notifications' || 
-    msg === 'ResizeObserver loop limit exceeded' ||
-    msg.includes('ResizeObserver loop completed') ||
-    msg.includes('ResizeObserver loop limit exceeded');
+  const isResizeObserverError = (msg: string | any) => {
+    if (!msg) return false;
+    const message = typeof msg === 'string' ? msg : (msg.message || String(msg));
+    return (
+      message.includes('ResizeObserver') ||
+      message.includes('loop limit exceeded')
+    );
+  };
 
   // Handle standard errors
   window.addEventListener('error', (e) => {
