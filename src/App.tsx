@@ -848,23 +848,41 @@ export default function App() {
   };
 
   const handleSaveRecipe = async () => {
-    if(!recipeName || recipeIngredients.length === 0) return;
+    let finalIngredients = [...recipeIngredients];
+    
+    // Auto-add if user forgot to click "+" but filled in the name/ml inputs
+    if (newIngName && newIngMl) {
+      finalIngredients.push({ name: newIngName, ml: parseInt(newIngMl), isAlcohol: true });
+      setNewIngName('');
+      setNewIngMl('');
+    }
+
+    if(!recipeName || finalIngredients.length === 0) {
+      if (!recipeName) alert("Please enter a cocktail name.");
+      else if (finalIngredients.length === 0) alert("Please add at least one ingredient.");
+      return;
+    }
+
     const newRecipe: Cocktail = {
       id: editingRecipe?.id || recipeName.toLowerCase().replace(/\s+/g, '-'),
       name: recipeName,
       category: 'Cocktail',
-      ingredients: recipeIngredients
+      ingredients: finalIngredients
     };
     
+    // Optimistic UI: Update state immediately
+    if(editingRecipe) setCocktails(prev => prev.map(c => c.id === editingRecipe.id ? newRecipe : c));
+    else setCocktails(prev => [...prev, newRecipe]);
+    
+    setIsRecipeDialogOpen(false);
+    setRecipeIngredients([]);
+    setRecipeName('');
+
     if (user) {
       try {
         await setDoc(doc(db, 'cocktails', newRecipe.id), { ...newRecipe, userId: user.uid, updatedAt: Timestamp.now() });
       } catch (err) { handleFirestoreError(err, 'write', `cocktails/${newRecipe.id}`); }
     }
-
-    if(editingRecipe) setCocktails(prev => prev.map(c => c.id === editingRecipe.id ? newRecipe : c));
-    else setCocktails(prev => [...prev, newRecipe]);
-    setIsRecipeDialogOpen(false);
   };
 
   const syncSettings = async (updates: any) => {
