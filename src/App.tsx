@@ -273,6 +273,7 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [history, setHistory] = useState<{usage: UsageRecord[], stock: StockLevel[]}[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<'All' | 'Cocktail' | 'Spirit by Glass' | 'Spirit by Bottle'>('All');
   const [activeTab, setActiveTab] = useState('par-cutting');
@@ -458,6 +459,7 @@ export default function App() {
         setSpiritMapping(initialMapping);
         setLogs([]);
         setStock(allIngredients.map(name => ({ ingredientName: name, initialMl: 0 })));
+        setHistory([]);
       }
     });
     return () => unsubscribe();
@@ -469,8 +471,19 @@ export default function App() {
 
     const qCocktails = query(collection(db, 'cocktails'), where('userId', '==', user.uid));
     const unsubCocktails = onSnapshot(qCocktails, (snapshot) => {
-      const data = snapshot.docs.map(d => d.data() as Cocktail);
-      if (data.length > 0) setCocktails(data);
+      const cloudData = snapshot.docs.map(d => d.data() as Cocktail);
+      if (cloudData.length > 0) {
+        setCocktails(prev => {
+          // Merge: Cloud overrides initial if ID matches, else add cloud items
+          const merged = [...initialCocktails];
+          cloudData.forEach(cc => {
+            const idx = merged.findIndex(c => c.id === cc.id);
+            if (idx !== -1) merged[idx] = cc;
+            else merged.push(cc);
+          });
+          return merged;
+        });
+      }
     }, (err) => console.error("Cocktails sync error", err));
 
     const qStock = query(collection(db, 'stock'), where('userId', '==', user.uid));
@@ -739,7 +752,20 @@ export default function App() {
     return { topDrinks, sortedDepletion };
   }, [logs, fullCocktailList]);
 
+  const pushToHistory = () => {
+    setHistory(prev => [{ usage: [...usage], stock: [...stock] }, ...prev].slice(0, 10));
+  };
+
+  const handleUndo = () => {
+    if (history.length === 0) return;
+    const last = history[0];
+    setUsage(last.usage);
+    setStock(last.stock);
+    setHistory(prev => prev.slice(1));
+  };
+
   const updateStock = async (name: string, ml: number) => {
+    pushToHistory();
     if (user) {
       try {
         const id = name.toLowerCase().replace(/\s+/g, '-');
@@ -759,6 +785,7 @@ export default function App() {
 
   const handleAddUsage = () => {
     if (selectedCocktail && parseInt(quantityInput) > 0) {
+      pushToHistory();
       setUsage(prev => [...prev, { cocktailId: selectedCocktail.id, quantity: parseInt(quantityInput), timestamp: Date.now() }]);
       setSelectedCocktail(null);
       setQuantityInput('1');
@@ -917,92 +944,103 @@ export default function App() {
     setIsSpiritDialogOpen(false);
   };
 
+  const handleRemoveRecipe = async (id: string) => {
+    if(window.confirm(`Are you sure you want to delete this recipe?`)) {
+      if (user) {
+        try {
+          await deleteDoc(doc(db, 'cocktails', id));
+        } catch (err) { handleFirestoreError(err, 'delete', `cocktails/${id}`); }
+      }
+      setCocktails(prev => prev.filter(c => c.id !== id));
+    }
+  };
+
   return (
     <div className="flex h-screen bg-black text-white font-sans overflow-hidden">
-      <aside className="w-16 border-r border-zinc-800 flex flex-col items-center py-8 gap-8">
+      <aside className="w-16 border-r border-zinc-800 hidden md:flex flex-col items-center py-8 gap-8">
          <Package className="text-blue-500 w-8 h-8" />
       </aside>
 
       <div className="flex-1 flex flex-col h-full overflow-hidden">
-        <header className="p-6 border-b border-zinc-800 flex justify-between items-center bg-zinc-950">
-          <div>
-            <h1 className="text-2xl font-light tracking-widest text-white uppercase italic">PAR <span className="text-blue-500 font-bold not-italic">STOCK</span> CONTROL</h1>
-            <p className="text-[10px] text-zinc-500 uppercase tracking-tighter">Inventory Management Solution</p>
+        <header className="p-3 md:p-6 border-b border-zinc-800 flex justify-between items-center bg-zinc-950">
+          <div className="flex-1">
+            <h1 className="text-sm md:text-2xl font-light tracking-widest text-white uppercase italic leading-none">PAR <span className="text-blue-500 font-bold not-italic">STOCK</span> CONTROL</h1>
+            <p className="hidden xs:block text-[8px] md:text-[10px] text-zinc-500 uppercase tracking-tighter mt-1">Inventory Management Solution</p>
           </div>
-          <div className="flex items-center gap-4">
-               <div className="flex items-center gap-2 px-3 py-1 bg-zinc-900 border border-zinc-800 rounded-full">
-                  <div className={`w-2 h-2 rounded-full ${user ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]' : 'bg-amber-500'}`} />
-                  <span className="text-[10px] font-mono whitespace-nowrap">{user ? 'CLOUD SYNC ACTIVE' : 'LOCAL STORAGE MODE'}</span>
+          <div className="flex items-center gap-2 md:gap-4">
+               <div className="flex items-center gap-1.5 px-2 py-0.5 md:px-3 md:py-1 bg-zinc-900 border border-zinc-800 rounded-full">
+                  <div className={`w-1.5 h-1.5 md:w-2 md:h-2 rounded-full ${user ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]' : 'bg-amber-500'}`} />
+                  <span className="text-[8px] md:text-[10px] font-mono whitespace-nowrap">{user ? 'SYNC' : 'LOCAL'}</span>
                </div>
                
                {user ? (
-                 <div className="flex items-center gap-3 pl-4 border-l border-zinc-800">
-                   <div className="text-right hidden sm:block">
+                 <div className="flex items-center gap-2 md:gap-3 pl-2 md:pl-4 border-l border-zinc-800">
+                   <div className="text-right hidden md:block">
                      <p className="text-[10px] font-bold text-white uppercase tracking-tight">{user.displayName || 'User'}</p>
                      <p className="text-[9px] text-zinc-500 truncate max-w-[120px]">{user.email}</p>
                    </div>
-                   <Button variant="ghost" size="icon" onClick={logOut} className="text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-full">
-                     <LogOut className="w-4 h-4" />
+                   <Button variant="ghost" size="icon" onClick={logOut} className="text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-full h-8 w-8 md:h-10 md:w-10">
+                     <LogOut className="w-3.5 h-3.5 md:w-4 md:h-4" />
                    </Button>
                  </div>
                ) : (
-                 <Button onClick={signIn} className="bg-white text-black hover:bg-zinc-200 rounded-full text-xs font-bold px-6 h-9 gap-2">
-                   <LogIn className="w-4 h-4" /> SIGN IN
+                 <Button onClick={signIn} className="bg-white text-black hover:bg-zinc-200 rounded-full text-[10px] md:text-xs font-bold px-3 md:px-6 h-8 md:h-9 gap-1.5 md:gap-2">
+                   <LogIn className="w-3.5 h-3.5 md:w-4 md:h-4" /> SIGN IN
                  </Button>
                )}
           </div>
         </header>
 
-        <main className="p-6 overflow-y-auto max-w-7xl mx-auto w-full h-full">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <TabsList className="bg-zinc-900 p-1 rounded-xl">
-              <TabsTrigger value="par-cutting" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">PAR CUTTING</TabsTrigger>
-              <TabsTrigger value="stock" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">STOCK</TabsTrigger>
-              <TabsTrigger value="recipe-data" className="data-[state=active]:bg-amber-600 data-[state=active]:text-white uppercase">Recipe Data</TabsTrigger>
-              <TabsTrigger value="summary" className="data-[state=active]:bg-indigo-600 data-[state=active]:text-white">HISTORY</TabsTrigger>
-              <TabsTrigger value="beverage-order" className="data-[state=active]:bg-rose-600 data-[state=active]:text-white uppercase">Beverage Order</TabsTrigger>
+        <main className="p-3 md:p-6 overflow-y-auto max-w-7xl mx-auto w-full h-full pb-24 md:pb-6">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 md:space-y-6">
+            <TabsList className="bg-zinc-900 p-1 rounded-xl h-auto flex flex-wrap gap-1 justify-start">
+              <TabsTrigger value="par-cutting" className="text-[10px] md:text-xs py-1 px-3 data-[state=active]:bg-blue-600 data-[state=active]:text-white uppercase">Par Cutting</TabsTrigger>
+              <TabsTrigger value="stock" className="text-[10px] md:text-xs py-1 px-3 data-[state=active]:bg-emerald-600 data-[state=active]:text-white">STOCK</TabsTrigger>
+              <TabsTrigger value="recipe-data" className="text-[10px] md:text-xs py-1 px-3 data-[state=active]:bg-amber-600 data-[state=active]:text-white uppercase">Recipes</TabsTrigger>
+              <TabsTrigger value="summary" className="text-[10px] md:text-xs py-1 px-3 data-[state=active]:bg-indigo-600 data-[state=active]:text-white">HISTORY</TabsTrigger>
+              <TabsTrigger value="beverage-order" className="text-[10px] md:text-xs py-1 px-3 data-[state=active]:bg-rose-600 data-[state=active]:text-white uppercase">Analytics</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="par-cutting" className="grid grid-cols-1 lg:grid-cols-3 gap-6 m-0">
-               <div className="lg:col-span-2 space-y-6">
-                  <Card className="bg-zinc-900 border-zinc-800 p-6">
-                    <div className="flex justify-between items-center mb-6">
-                      <h2 className="text-lg font-bold uppercase tracking-tight">Daily Sales Entry</h2>
-                      <div className="flex gap-2">
-                        <Input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="w-40 bg-zinc-800 border-zinc-700 text-white" />
+            <TabsContent value="par-cutting" className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 m-0">
+               <div className="md:col-span-2 space-y-4 md:space-y-6">
+                  <Card className="bg-zinc-900 border-zinc-800 p-4 md:p-6">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 md:mb-6">
+                      <h2 className="text-md md:text-lg font-bold uppercase tracking-tight">Sales Entry</h2>
+                      <div className="flex gap-2 w-full sm:w-auto">
+                        <Input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="w-full sm:w-40 bg-zinc-800 border-zinc-700 text-white h-9 text-xs" />
                       </div>
                     </div>
                     
-                    <div className="flex gap-4 items-center mb-6 overflow-x-auto pb-2 scrollbar-none">
+                    <div className="flex gap-2 items-center mb-4 md:mb-6 overflow-x-auto pb-2 scrollbar-none">
                        {['All', 'Cocktail', 'Spirit by Glass', 'Spirit by Bottle'].map(c => (
-                         <Button key={c} variant={selectedCategory === c ? 'default' : 'outline'} onClick={() => setSelectedCategory(c as any)} className="rounded-full px-6">{c}</Button>
+                         <Button key={c} variant={selectedCategory === c ? 'default' : 'outline'} onClick={() => setSelectedCategory(c as any)} className="rounded-full px-4 h-8 text-[10px] md:text-xs whitespace-nowrap">{c}</Button>
                        ))}
                     </div>
 
-                    <div className="flex gap-4">
-                      {/* Alphabetical Sidebar */}
-                      <div className="w-8 flex flex-col items-center gap-1.5 py-4 border-r border-zinc-800 sticky top-0 h-fit">
+                    <div className="flex gap-2 md:gap-4">
+                      {/* Alphabetical Sidebar - Smaller for mobile */}
+                      <div className="w-6 md:w-8 flex flex-col items-center gap-1 md:gap-1.5 py-2 md:py-4 border-r border-zinc-800 sticky top-0 h-fit">
                          {alphabet.map(letter => (
-                           <button key={letter} onClick={() => scrollToLetter(letter)} className="text-[10px] font-bold text-zinc-500 hover:text-blue-500 transition-colors uppercase">
+                           <button key={letter} onClick={() => scrollToLetter(letter)} className="text-[9px] md:text-[10px] font-bold text-zinc-500 hover:text-blue-500 transition-colors uppercase">
                              {letter}
                            </button>
                          ))}
                       </div>
 
-                      <ScrollArea className="h-[500px] flex-1">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pr-4">
+                      <ScrollArea className="h-[400px] md:h-[500px] flex-1">
+                        <div className="grid grid-cols-2 lg:grid-cols-2 gap-2 md:gap-3 pr-2 md:pr-4">
                           {filteredItems.map(item => (
                             <button 
                               key={item.id} 
                               ref={el => cocktailRefs.current[item.id] = el}
                               onClick={() => setSelectedCocktail(item)} 
-                              className="p-4 bg-zinc-800 border border-zinc-700 rounded-xl hover:border-blue-500 transition-all text-left flex justify-between items-center group"
+                              className="p-2 md:p-4 bg-zinc-800 border border-zinc-700 rounded-xl hover:border-blue-500 transition-all text-left flex flex-col sm:flex-row justify-between items-start sm:items-center group min-h-[60px] md:min-h-0"
                             >
-                              <div>
-                                <p className="text-[10px] text-zinc-500 uppercase">{item.category}</p>
-                                <p className="font-medium text-white group-hover:text-blue-400">{item.name}</p>
+                              <div className="overflow-hidden w-full">
+                                <p className="text-[8px] md:text-[10px] text-zinc-500 uppercase truncate">{item.category}</p>
+                                <p className="text-xs md:text-sm font-medium text-white group-hover:text-blue-400 truncate w-full">{item.name}</p>
                               </div>
-                              <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-blue-500" />
+                              <ChevronRight className="hidden sm:block w-4 h-4 text-zinc-600 group-hover:text-blue-500" />
                             </button>
                           ))}
                         </div>
@@ -1011,24 +1049,27 @@ export default function App() {
                   </Card>
                </div>
 
-               <div className="space-y-6 h-fit sticky top-0">
-                 <Card className="bg-zinc-900 border-zinc-800 p-6 flex flex-col gap-6">
+               <div className="space-y-4 md:space-y-6 md:h-fit md:sticky md:top-0">
+                 <Card className="bg-zinc-900 border-zinc-800 p-4 md:p-6 flex flex-col gap-4 md:gap-6">
                     <div>
-                      <div className="flex justify-between items-center mb-6">
-                        <h2 className="text-xs uppercase tracking-widest text-zinc-500">Session Workspace</h2>
-                        <Button variant="ghost" size="icon" onClick={() => setUsage([])} className="hover:text-red-500"><Trash2 className="w-4 h-4" /></Button>
+                      <div className="flex justify-between items-center mb-4 md:mb-6">
+                        <h2 className="text-[10px] uppercase tracking-widest text-zinc-500">Session Workspace</h2>
+                        <div className="flex items-center gap-1">
+                          <Button variant="ghost" size="icon" onClick={handleUndo} disabled={history.length === 0} className="hover:text-blue-500 disabled:opacity-20 h-8 w-8"><Zap className="w-3.5 h-3.5" /></Button>
+                          <Button variant="ghost" size="icon" onClick={() => setUsage([])} className="hover:text-red-500 h-8 w-8"><Trash2 className="w-3.5 h-3.5" /></Button>
+                        </div>
                       </div>
                       {Object.keys(totalUsageByIngredient).length === 0 ? (
-                        <div className="text-center py-20 text-zinc-700">
-                          <Calculator className="mx-auto mb-4 w-12 h-12 opacity-20" />
+                        <div className="text-center py-8 md:py-20 text-zinc-700">
+                          <Calculator className="mx-auto mb-4 w-10 h-10 md:w-12 md:h-12 opacity-20" />
                           <p className="text-[10px] uppercase">Awaiting entries...</p>
                         </div>
                       ) : (
-                        <ScrollArea className="h-64 pr-4">
+                        <ScrollArea className="h-40 md:h-64 pr-2">
                           {stockStatus.filter(s => s.used > 0).map(s => (
-                            <div key={s.ingredientName} className="flex justify-between py-3 border-b border-zinc-800 last:border-0">
-                               <span className="text-xs text-zinc-300">{getExcelDisplayName(s.ingredientName)}</span>
-                               <span className="font-mono text-blue-400 font-bold">{(s.used * ML_TO_OZ).toFixed(1)} oz</span>
+                            <div key={s.ingredientName} className="flex justify-between py-2 border-b border-zinc-800 last:border-0 items-center">
+                               <span className="text-[10px] md:text-xs text-zinc-300 truncate max-w-[150px]">{getExcelDisplayName(s.ingredientName)}</span>
+                               <span className="font-mono text-blue-400 font-bold text-xs">{(s.used * ML_TO_OZ).toFixed(1)} oz</span>
                             </div>
                           ))}
                         </ScrollArea>
@@ -1038,9 +1079,9 @@ export default function App() {
                     {usage.length > 0 && (
                       <Button 
                         onClick={commitToLog} 
-                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold h-14 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20"
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold h-12 md:h-14 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20 text-sm"
                       >
-                        <CheckCircle2 className="w-5 h-5" />
+                        <CheckCircle2 className="w-4 h-4 md:w-5 md:h-5" />
                         SAVE TO HISTORY
                       </Button>
                     )}
@@ -1048,11 +1089,11 @@ export default function App() {
                </div>
             </TabsContent>
 
-            <TabsContent value="recipe-data" className="m-0 space-y-6">
-              <div className="flex justify-between items-center bg-zinc-900 border border-zinc-800 p-6 rounded-[32px]">
-                <div>
-                  <h2 className="text-2xl font-bold uppercase tracking-tight">Cocktail Recipes</h2>
-                  <p className="text-sm text-zinc-500">Manage and edit your bar's cocktail database</p>
+            <TabsContent value="recipe-data" className="m-0 space-y-4 md:space-y-6">
+              <Card className="bg-zinc-900 border border-zinc-800 p-4 md:p-6 rounded-2xl md:rounded-[32px] flex flex-col sm:flex-row justify-between items-center gap-4">
+                <div className="text-center sm:text-left">
+                  <h2 className="text-xl md:text-2xl font-bold uppercase tracking-tight text-white">Recipe Book</h2>
+                  <p className="text-[10px] md:text-sm text-zinc-500">Inventory and recipe management</p>
                 </div>
                 <Button 
                   onClick={() => {
@@ -1061,55 +1102,47 @@ export default function App() {
                     setRecipeIngredients([]);
                     setIsRecipeDialogOpen(true);
                   }}
-                  className="bg-amber-600 hover:bg-amber-700 rounded-2xl h-14 px-8 font-bold gap-2"
+                  className="w-full sm:w-auto bg-amber-600 hover:bg-amber-700 rounded-xl md:rounded-2xl h-12 md:h-14 px-6 md:px-8 font-bold gap-2 text-xs md:text-md"
                 >
-                  <Plus className="w-5 h-5" /> NEW RECIPE
+                  <Plus className="w-4 h-4 md:w-5 md:h-5" /> NEW RECIPE
                 </Button>
-              </div>
+              </Card>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                  {cocktails.map(recipe => (
-                   <Card key={recipe.id} className="bg-zinc-950 border-zinc-800 p-6 rounded-[32px] hover:border-amber-500/50 transition-all group overflow-hidden relative">
-                      <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                         <div className="flex gap-2">
-                           <Button 
-                             variant="ghost" 
-                             size="icon" 
-                             className="h-10 w-10 bg-zinc-900 border border-zinc-800 rounded-xl"
-                             onClick={() => {
-                               setEditingRecipe(recipe);
-                               setRecipeName(recipe.name);
-                               setRecipeIngredients([...recipe.ingredients]);
-                               setIsRecipeDialogOpen(true);
-                             }}
-                            >
-                             <Info className="w-4 h-4 text-amber-500" />
-                           </Button>
-                           <Button 
-                             variant="ghost" 
-                             size="icon" 
-                             className="h-10 w-10 bg-zinc-900 border border-zinc-800 rounded-xl hover:text-red-500"
-                             onClick={() => {
-                               if(window.confirm(`Delete ${recipe.name}?`)) {
-                                 setCocktails(prev => prev.filter(c => c.id !== recipe.id));
-                               }
-                             }}
-                            >
-                             <Trash2 className="w-4 h-4" />
-                           </Button>
-                         </div>
+                   <Card key={recipe.id} className="bg-zinc-950 border-zinc-800 p-4 md:p-6 rounded-2xl md:rounded-[32px] hover:border-amber-500/50 transition-all group overflow-hidden relative">
+                      <div className="absolute top-2 right-2 flex gap-1 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                         <Button 
+                           variant="ghost" 
+                           size="icon" 
+                           className="h-8 w-8 md:h-10 md:w-10 bg-zinc-900 border border-zinc-800 rounded-lg md:rounded-xl"
+                           onClick={() => {
+                             setEditingRecipe(recipe);
+                             setRecipeName(recipe.name);
+                             setRecipeIngredients([...recipe.ingredients]);
+                             setIsRecipeDialogOpen(true);
+                           }}
+                          >
+                           <Info className="w-3.5 h-3.5 md:w-4 md:h-4 text-amber-500" />
+                         </Button>
+                         <Button 
+                           variant="ghost" 
+                           size="icon" 
+                           className="h-8 w-8 md:h-10 md:w-10 bg-zinc-900 border border-zinc-800 rounded-lg md:rounded-xl hover:text-red-500"
+                           onClick={() => handleRemoveRecipe(recipe.id)}
+                          >
+                           <Trash2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                         </Button>
                       </div>
 
-                      <h3 className="text-lg font-bold text-white mb-4 uppercase tracking-tight">{recipe.name}</h3>
-                      <div className="space-y-4">
-                         <div className="space-y-2">
-                           {recipe.ingredients.map((ing, idx) => (
-                             <div key={idx} className="flex justify-between items-center text-sm border-b border-zinc-900 pb-1 last:border-0">
-                                <span className="text-zinc-400">{ing.name}</span>
-                                <span className="font-mono text-amber-500 font-bold">{ing.ml}ml</span>
-                             </div>
-                           ))}
-                         </div>
+                      <h3 className="text-sm md:text-lg font-bold text-white mb-3 md:mb-4 uppercase tracking-tight pr-16">{recipe.name}</h3>
+                      <div className="space-y-2">
+                         {recipe.ingredients.map((ing, idx) => (
+                           <div key={idx} className="flex justify-between items-center text-[10px] md:text-sm border-b border-zinc-900 pb-1 last:border-0">
+                              <span className="text-zinc-400">{ing.name}</span>
+                              <span className="font-mono text-amber-500 font-bold">{ing.ml}ml</span>
+                           </div>
+                         ))}
                       </div>
                    </Card>
                  ))}
