@@ -4,8 +4,23 @@
  */
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Search, Calculator, Trash2, ChevronRight, GlassWater, Info, Package, AlertTriangle, CheckCircle2, User, Bot, Zap, Sparkles, RefreshCcw, Plus } from 'lucide-react';
+import { Search, Calculator, Trash2, ChevronRight, GlassWater, Info, Package, AlertTriangle, CheckCircle2, User as UserIcon, Bot, Zap, Sparkles, RefreshCcw, Plus, LogOut, LogIn, Cloud, CloudOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { db, auth, signIn, logOut, handleFirestoreError } from './lib/firebase';
+import { onAuthStateChanged, User } from 'firebase/auth';
+import { 
+  collection, 
+  onSnapshot, 
+  doc, 
+  setDoc, 
+  deleteDoc, 
+  query, 
+  where, 
+  writeBatch, 
+  getDocs,
+  Timestamp,
+  getDoc
+} from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -255,6 +270,9 @@ const initialMapping: { [key: string]: string } = {
 };
 
 export default function App() {
+  const [user, setUser] = useState<User | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<'All' | 'Cocktail' | 'Spirit by Glass' | 'Spirit by Bottle'>('All');
   const [activeTab, setActiveTab] = useState('par-cutting');
@@ -425,6 +443,134 @@ export default function App() {
     localStorage.setItem('skybar_logs_cache', JSON.stringify(logs));
   }, [logs]);
 
+  // --- FIREBASE SYNC LOGIC ---
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      setIsAuthLoading(false);
+      if (!u) {
+        // Reset to local storage or initials on logout
+        setCocktails(initialCocktails);
+        setSpiritsByGlass45(initialGlass45);
+        setSpiritsByGlass30(initialGlass30);
+        setSpiritsByBottle(initialBottle);
+        setExcelOrder(initialExcelOrder);
+        setSpiritMapping(initialMapping);
+        setLogs([]);
+        setStock(allIngredients.map(name => ({ ingredientName: name, initialMl: 0 })));
+      }
+    });
+    return () => unsubscribe();
+  }, [allIngredients]);
+
+  // Listeners for Firestore data
+  useEffect(() => {
+    if (!user) return;
+
+    const qCocktails = query(collection(db, 'cocktails'), where('userId', '==', user.uid));
+    const unsubCocktails = onSnapshot(qCocktails, (snapshot) => {
+      const data = snapshot.docs.map(d => d.data() as Cocktail);
+      if (data.length > 0) setCocktails(data);
+    }, (err) => console.error("Cocktails sync error", err));
+
+    const qStock = query(collection(db, 'stock'), where('userId', '==', user.uid));
+    const unsubStock = onSnapshot(qStock, (snapshot) => {
+      const data = snapshot.docs.map(d => d.data() as StockLevel);
+      if (data.length > 0) {
+        setStock(prev => {
+          const newStock = [...prev];
+          data.forEach(s => {
+            const idx = newStock.findIndex(ns => ns.ingredientName === s.ingredientName);
+            if (idx !== -1) newStock[idx] = s;
+            else newStock.push(s);
+          });
+          return newStock;
+        });
+      }
+    });
+
+    const qLogs = query(collection(db, 'logs'), where('userId', '==', user.uid));
+    const unsubLogs = onSnapshot(qLogs, (snapshot) => {
+      const data = snapshot.docs.map(d => d.data() as DailyLog);
+      if (data.length > 0) setLogs(data.sort((a,b) => b.timestamp - a.timestamp));
+    });
+
+    const unsubSettings = onSnapshot(doc(db, 'settings', user.uid), (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        if (data.spiritsByGlass45) setSpiritsByGlass45(data.spiritsByGlass45);
+        if (data.spiritsByGlass30) setSpiritsByGlass30(data.spiritsByGlass30);
+        if (data.spiritsByBottle) setSpiritsByBottle(data.spiritsByBottle);
+        if (data.excelOrder) setExcelOrder(data.excelOrder);
+        if (data.spiritMapping) setSpiritMapping(data.spiritMapping);
+      }
+    });
+
+    return () => {
+      unsubCocktails();
+      unsubStock();
+      unsubLogs();
+      unsubSettings();
+    };
+  }, [user]);
+
+  // Migration logic
+  const migrateToCloud = async () => {
+    if (!user || isSyncing) return;
+    setIsSyncing(true);
+    try {
+      const batch = writeBatch(db);
+      
+      // Check if already migrated by checking settings
+      const settingsRef = doc(db, 'settings', user.uid);
+      const settingsSnap = await getDoc(settingsRef);
+      if (settingsSnap.exists()) {
+        setIsSyncing(false);
+        return;
+      }
+
+      // Settings
+      batch.set(settingsRef, {
+        userId: user.uid,
+        spiritsByGlass45,
+        spiritsByGlass30,
+        spiritsByBottle,
+        excelOrder,
+        spiritMapping,
+        updatedAt: Timestamp.now()
+      });
+
+      // Cocktails (only custom ones)
+      cocktails.forEach(c => {
+        batch.set(doc(db, 'cocktails', c.id), { ...c, userId: user.uid, updatedAt: Timestamp.now() });
+      });
+
+      // Stock
+      stock.forEach(s => {
+        const id = s.ingredientName.toLowerCase().replace(/\s+/g, '-');
+        batch.set(doc(db, 'stock', id), { ...s, userId: user.uid, updatedAt: Timestamp.now() });
+      });
+
+      // Logs
+      logs.forEach(l => {
+        batch.set(doc(db, 'logs', l.date), { ...l, userId: user.uid });
+      });
+
+      await batch.commit();
+      alert("Local data successfully synced to the cloud!");
+    } catch (err) {
+      console.error("Migration error", err);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user && !isAuthLoading) {
+      migrateToCloud();
+    }
+  }, [user, isAuthLoading]);
+
   const [selectedCocktail, setSelectedCocktail] = useState<Cocktail | null>(null);
   const [selectedLog, setSelectedLog] = useState<DailyLog | null>(null);
   const [logToDelete, setLogToDelete] = useState<string | null>(null);
@@ -593,7 +739,13 @@ export default function App() {
     return { topDrinks, sortedDepletion };
   }, [logs, fullCocktailList]);
 
-  const updateStock = (name: string, ml: number) => {
+  const updateStock = async (name: string, ml: number) => {
+    if (user) {
+      try {
+        const id = name.toLowerCase().replace(/\s+/g, '-');
+        await setDoc(doc(db, 'stock', id), { ingredientName: name, initialMl: ml, userId: user.uid, updatedAt: Timestamp.now() });
+      } catch (err) { handleFirestoreError(err, 'write', `stock/${name}`); }
+    }
     setStock(prev => prev.map(s => s.ingredientName === name ? { ...s, initialMl: ml } : s));
   };
 
@@ -613,18 +765,24 @@ export default function App() {
     }
   };
 
-  const commitToLog = () => {
+  const commitToLog = async () => {
     if (usage.length === 0) return;
     const existing = logs.find(l => l.date === selectedDate);
     const finalLog = existing ? { ...existing, usage: [...existing.usage, ...usage], timestamp: Date.now() } : { date: selectedDate, usage: [...usage], timestamp: Date.now() };
     
+    if (user) {
+      try {
+        await setDoc(doc(db, 'logs', finalLog.date), { ...finalLog, userId: user.uid });
+      } catch (err) { handleFirestoreError(err, 'write', `logs/${finalLog.date}`); }
+    }
+
     setLogs(prev => {
       const otherLogs = prev.filter(l => l.date !== selectedDate);
       return [finalLog, ...otherLogs].sort((a, b) => b.timestamp - a.timestamp);
     });
 
     setUsage([]);
-    alert("Record committed to local history.");
+    alert(user ? "Syncing to cloud..." : "Record committed to local history.");
   };
 
   const totalUsageByIngredient = useMemo(() => {
@@ -662,7 +820,7 @@ export default function App() {
     }
   };
 
-  const handleSaveRecipe = () => {
+  const handleSaveRecipe = async () => {
     if(!recipeName || recipeIngredients.length === 0) return;
     const newRecipe: Cocktail = {
       id: editingRecipe?.id || recipeName.toLowerCase().replace(/\s+/g, '-'),
@@ -670,33 +828,56 @@ export default function App() {
       category: 'Cocktail',
       ingredients: recipeIngredients
     };
+    
+    if (user) {
+      try {
+        await setDoc(doc(db, 'cocktails', newRecipe.id), { ...newRecipe, userId: user.uid, updatedAt: Timestamp.now() });
+      } catch (err) { handleFirestoreError(err, 'write', `cocktails/${newRecipe.id}`); }
+    }
+
     if(editingRecipe) setCocktails(prev => prev.map(c => c.id === editingRecipe.id ? newRecipe : c));
     else setCocktails(prev => [...prev, newRecipe]);
     setIsRecipeDialogOpen(false);
   };
 
-  const handleSaveSpirit = () => {
+  const syncSettings = async (updates: any) => {
+    if (!user) return;
+    try {
+      await setDoc(doc(db, 'settings', user.uid), { ...updates, userId: user.uid, updatedAt: Timestamp.now() }, { merge: true });
+    } catch (err) { handleFirestoreError(err, 'update', `settings/${user.uid}`); }
+  };
+
+  const handleSaveSpirit = async () => {
     if(!newSpiritName) return;
     const bSize = parseInt(newSpiritBtlSize);
     const gSize = parseInt(newSpiritGlassSize);
     
-    // Update spirit lists
-    if(gSize === 45) setSpiritsByGlass45(prev => [...new Set([...prev, newSpiritName])]);
-    if(gSize === 30) setSpiritsByGlass30(prev => [...new Set([...prev, newSpiritName])]);
-    setSpiritsByBottle(prev => [...prev.filter(b => b.name !== newSpiritName), { name: newSpiritName, ml: bSize }]);
-
-    // Update Mapping
-    setSpiritMapping(prev => ({ ...prev, [newSpiritName]: `${newSpiritName} ${btlSizeLabel(bSize)}` }));
-
-    // Update Order
+    const nextGlass45 = gSize === 45 ? [...new Set([...spiritsByGlass45, newSpiritName])] : spiritsByGlass45;
+    const nextGlass30 = gSize === 30 ? [...new Set([...spiritsByGlass30, newSpiritName])] : spiritsByGlass30;
+    const nextBottle = [...spiritsByBottle.filter(b => b.name !== newSpiritName), { name: newSpiritName, ml: bSize }];
     const bLabel = `${newSpiritName} ${btlSizeLabel(bSize)}`;
+    const nextMapping = { ...spiritMapping, [newSpiritName]: bLabel };
+    
     const pos = parseInt(newSpiritPosition) - 1;
-    setExcelOrder(prev => {
-      const filtered = prev.filter(n => n !== bLabel);
-      const res = [...filtered];
-      res.splice(isNaN(pos) ? res.length : pos, 0, bLabel);
-      return res;
-    });
+    const filteredOrder = excelOrder.filter(n => n !== bLabel);
+    const nextOrder = [...filteredOrder];
+    nextOrder.splice(isNaN(pos) ? nextOrder.length : pos, 0, bLabel);
+
+    if (user) {
+      await syncSettings({
+        spiritsByGlass45: nextGlass45,
+        spiritsByGlass30: nextGlass30,
+        spiritsByBottle: nextBottle,
+        spiritMapping: nextMapping,
+        excelOrder: nextOrder
+      });
+    }
+
+    if(gSize === 45) setSpiritsByGlass45(nextGlass45);
+    if(gSize === 30) setSpiritsByGlass30(nextGlass30);
+    setSpiritsByBottle(nextBottle);
+    setSpiritMapping(nextMapping);
+    setExcelOrder(nextOrder);
 
     setIsSpiritDialogOpen(false);
   };
@@ -706,11 +887,31 @@ export default function App() {
     return `${ml} ml`;
   };
 
-  const handleRemoveSpirits = () => {
+  const handleRemoveSpirits = async () => {
     if(spiritsToRemove.length === 0) return;
-    setSpiritsByGlass45(prev => prev.filter(s => !spiritsToRemove.includes(s)));
-    setSpiritsByGlass30(prev => prev.filter(s => !spiritsToRemove.includes(s)));
-    setSpiritsByBottle(prev => prev.filter(s => !spiritsToRemove.includes(s.name)));
+    const nextGlass45 = spiritsByGlass45.filter(s => !spiritsToRemove.includes(s));
+    const nextGlass30 = spiritsByGlass30.filter(s => !spiritsToRemove.includes(s));
+    const nextBottle = spiritsByBottle.filter(s => !spiritsToRemove.includes(s.name));
+    
+    if (user) {
+      const batch = writeBatch(db);
+      // Remove cocktails associated with these spirits
+      const cocktailsToRemove = cocktails.filter(c => spiritsToRemove.includes(c.name));
+      cocktailsToRemove.forEach(c => batch.delete(doc(db, 'cocktails', c.id)));
+      
+      // Update settings
+      batch.set(doc(db, 'settings', user.uid), {
+        spiritsByGlass45: nextGlass45,
+        spiritsByGlass30: nextGlass30,
+        spiritsByBottle: nextBottle
+      }, { merge: true });
+      
+      await batch.commit();
+    }
+
+    setSpiritsByGlass45(nextGlass45);
+    setSpiritsByGlass30(nextGlass30);
+    setSpiritsByBottle(nextBottle);
     setCocktails(prev => prev.filter(c => !spiritsToRemove.includes(c.name)));
     setSpiritsToRemove([]);
     setIsSpiritDialogOpen(false);
@@ -730,9 +931,25 @@ export default function App() {
           </div>
           <div className="flex items-center gap-4">
                <div className="flex items-center gap-2 px-3 py-1 bg-zinc-900 border border-zinc-800 rounded-full">
-                  <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                  <span className="text-[10px] font-mono">LOCAL STORAGE ACTIVE</span>
+                  <div className={`w-2 h-2 rounded-full ${user ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]' : 'bg-amber-500'}`} />
+                  <span className="text-[10px] font-mono whitespace-nowrap">{user ? 'CLOUD SYNC ACTIVE' : 'LOCAL STORAGE MODE'}</span>
                </div>
+               
+               {user ? (
+                 <div className="flex items-center gap-3 pl-4 border-l border-zinc-800">
+                   <div className="text-right hidden sm:block">
+                     <p className="text-[10px] font-bold text-white uppercase tracking-tight">{user.displayName || 'User'}</p>
+                     <p className="text-[9px] text-zinc-500 truncate max-w-[120px]">{user.email}</p>
+                   </div>
+                   <Button variant="ghost" size="icon" onClick={logOut} className="text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-full">
+                     <LogOut className="w-4 h-4" />
+                   </Button>
+                 </div>
+               ) : (
+                 <Button onClick={signIn} className="bg-white text-black hover:bg-zinc-200 rounded-full text-xs font-bold px-6 h-9 gap-2">
+                   <LogIn className="w-4 h-4" /> SIGN IN
+                 </Button>
+               )}
           </div>
         </header>
 
@@ -1234,8 +1451,13 @@ export default function App() {
           <div className="grid grid-cols-2 gap-4 mt-8">
             <Button variant="outline" onClick={() => setLogToDelete(null)} className="h-14 rounded-2xl border-zinc-700 hover:bg-zinc-800">CANCEL</Button>
             <Button 
-              onClick={() => {
+              onClick={async () => {
                 if (logToDelete) {
+                  if (user) {
+                    try {
+                      await deleteDoc(doc(db, 'logs', logToDelete));
+                    } catch (err) { handleFirestoreError(err, 'delete', `logs/${logToDelete}`); }
+                  }
                   setLogs(prev => prev.filter(l => l.date !== logToDelete));
                   setLogToDelete(null);
                 }

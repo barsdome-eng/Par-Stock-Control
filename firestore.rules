@@ -1,0 +1,81 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Global helpers
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function isEmailVerified() { return request.auth.token.email_verified == true; }
+    function docOwner(data) { return data.userId == request.auth.uid; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    // Validation Blueprints
+    function isValidCocktail(data) {
+      return data.name is string && data.name.size() <= 100 &&
+             data.ingredients is list && data.ingredients.size() <= 30 &&
+             data.category in ['Cocktail', 'Spirit by Glass', 'Spirit by Bottle'] &&
+             data.userId == request.auth.uid;
+    }
+
+    function isValidStock(data) {
+      return data.ingredientName is string && data.ingredientName.size() <= 150 &&
+             data.initialMl is number &&
+             data.userId == request.auth.uid;
+    }
+
+    function isValidLog(data) {
+      return data.date is string && data.date.size() <= 20 &&
+             data.usage is list && data.usage.size() <= 200 &&
+             data.timestamp is number &&
+             data.userId == request.auth.uid;
+    }
+
+    function isValidSettings(data) {
+      return data.userId == request.auth.uid &&
+             data.spiritsByGlass45 is list &&
+             data.spiritsByGlass30 is list &&
+             data.spiritsByBottle is list &&
+             (data.excelOrder == null || data.excelOrder is list) &&
+             (data.spiritMapping == null || data.spiritMapping is map);
+    }
+
+    // Collection matches
+    match /cocktails/{cocktailId} {
+      allow get: if isOwner(existing().userId);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isEmailVerified() && isValidId(cocktailId) && isValidCocktail(incoming());
+      allow update: if isSignedIn() && isEmailVerified() && isOwner(existing().userId) && isValidCocktail(incoming()) &&
+                   incoming().userId == existing().userId;
+      allow delete: if isSignedIn() && isOwner(existing().userId);
+    }
+
+    match /stock/{ingredientId} {
+      allow get: if isOwner(existing().userId);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isEmailVerified() && isValidId(ingredientId) && isValidStock(incoming());
+      allow update: if isSignedIn() && isEmailVerified() && isOwner(existing().userId) && isValidStock(incoming()) &&
+                   incoming().userId == existing().userId;
+      allow delete: if isSignedIn() && isOwner(existing().userId);
+    }
+
+    match /logs/{date} {
+      allow get: if isOwner(existing().userId);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isEmailVerified() && isValidId(date) && isValidLog(incoming());
+      allow update: if isSignedIn() && isEmailVerified() && isOwner(existing().userId) && isValidLog(incoming()) &&
+                   incoming().userId == existing().userId;
+      allow delete: if isSignedIn() && isOwner(existing().userId);
+    }
+
+    match /settings/{userId} {
+      allow get, write: if isOwner(userId) && isEmailVerified() && (request.method == 'get' || isValidSettings(incoming()));
+    }
+  }
+}

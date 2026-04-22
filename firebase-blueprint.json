@@ -1,0 +1,87 @@
+{
+  "entities": {
+    "Cocktail": {
+      "title": "Cocktail Recipe",
+      "description": "Definition of a cocktail recipe",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "ingredients": {
+          "type": "array",
+          "items": { "type": "object", "properties": { "name": { "type": "string" }, "ml": { "type": "number" }, "isAlcohol": { "type": "boolean" } } }
+        },
+        "category": { "type": "string", "enum": ["Cocktail", "Spirit by Glass", "Spirit by Bottle"] },
+        "userId": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "ingredients", "category", "userId"]
+    },
+    "StockLevel": {
+      "title": "Stock Level",
+      "description": "Current stock of an ingredient",
+      "type": "object",
+      "properties": {
+        "ingredientName": { "type": "string" },
+        "initialMl": { "type": "number" },
+        "userId": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ingredientName", "initialMl", "userId"]
+    },
+    "DailyLog": {
+      "title": "Daily Log",
+      "description": "Sales records for a specific date",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string" },
+        "usage": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "cocktailId": { "type": "string" },
+              "quantity": { "type": "number" },
+              "timestamp": { "type": "number" }
+            }
+          }
+        },
+        "timestamp": { "type": "number" },
+        "userId": { "type": "string" }
+      },
+      "required": ["date", "usage", "timestamp", "userId"]
+    },
+    "AppSettings": {
+      "title": "App Settings",
+      "description": "User specific application lists and mappings",
+      "type": "object",
+      "properties": {
+        "spiritsByGlass45": { "type": "array", "items": { "type": "string" } },
+        "spiritsByGlass30": { "type": "array", "items": { "type": "string" } },
+        "spiritsByBottle": { "type": "array", "items": { "type": "object", "properties": { "name": { "type": "string" }, "ml": { "type": "number" } } } },
+        "excelOrder": { "type": "array", "items": { "type": "string" } },
+        "spiritMapping": { "type": "object", "additionalProperties": { "type": "string" } },
+        "userId": { "type": "string" }
+      },
+      "required": ["userId"]
+    }
+  },
+  "firestore": {
+    "/cocktails/{cocktailId}": {
+      "schema": "Cocktail",
+      "description": "User cocktail recipes"
+    },
+    "/stock/{ingredientId}": {
+      "schema": "StockLevel",
+      "description": "User stock levels"
+    },
+    "/logs/{date}": {
+      "schema": "DailyLog",
+      "description": "User daily logs"
+    },
+    "/settings/{userId}": {
+      "schema": "AppSettings",
+      "description": "User application settings"
+    }
+  }
+}
