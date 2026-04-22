@@ -24,6 +24,14 @@ import { cocktails as initialCocktails, spiritsByGlass45 as initialGlass45, spir
 
 const ML_TO_OZ = 1 / 30;
 
+const formatDate = (dateString: string | number) => {
+  const date = new Date(dateString);
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
+};
+
 const initialExcelOrder = [
   "Roku Gin 700 ml",
   "Bombay Sapphire Gin 750 ml",
@@ -940,7 +948,7 @@ export default function App() {
             <TabsContent value="summary" className="m-0 space-y-6 pb-20">
                <div className="flex justify-between items-center">
                   <h2 className="text-xl font-bold uppercase tracking-tight">Monthly Performance</h2>
-                  <p className="text-[10px] text-zinc-500 uppercase tracking-widest">{new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</p>
+                  <p className="text-[10px] text-zinc-500 uppercase tracking-widest">{formatDate(new Date().toISOString())}</p>
                </div>
 
                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -983,7 +991,7 @@ export default function App() {
                        >
                          <div className="p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                             <div className="space-y-1">
-                               <p className="text-blue-500 font-mono text-lg font-bold">{new Date(log.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                               <p className="text-blue-500 font-mono text-lg font-bold">{formatDate(log.date)}</p>
                                <p className="text-[10px] text-zinc-500 uppercase tracking-tighter">Session: {new Date(log.timestamp).toLocaleTimeString()}</p>
                             </div>
                             <div className="flex gap-8 flex-1 justify-center">
@@ -1140,7 +1148,7 @@ export default function App() {
         <DialogContent className="bg-zinc-900 border-zinc-800 text-white max-w-md rounded-[32px] p-8">
           <DialogHeader>
             <DialogTitle className="text-center text-blue-500 font-mono text-xl">
-              {selectedLog ? new Date(selectedLog.date).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' }) : ''}
+              {selectedLog ? formatDate(selectedLog.date) : ''}
             </DialogTitle>
           </DialogHeader>
           
@@ -1220,7 +1228,7 @@ export default function App() {
             </div>
             <DialogTitle className="text-xl font-bold uppercase tracking-tight text-center">Delete Log?</DialogTitle>
             <p className="text-sm text-zinc-500 text-center mt-2">
-              Are you sure you want to delete the log for {logToDelete ? new Date(logToDelete).toLocaleDateString() : ''}? This action cannot be undone.
+              Are you sure you want to delete the log for {logToDelete ? formatDate(logToDelete) : ''}? This action cannot be undone.
             </p>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-4 mt-8">
