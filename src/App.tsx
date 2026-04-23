@@ -374,6 +374,24 @@ export default function App() {
   const [timerTick, setTimerTick] = useState(0);
 
   // Generated items
+  const formatIngredientSize = (val: number, unit: string) => {
+    if (unit === 'kg' || unit === 'g') {
+      if (val >= 1000) return `${val/1000} KG`;
+      return `${val} g`;
+    }
+    if (unit === 'l' || unit === 'ml') {
+      if (val >= 1000) return `${val/1000} L`;
+      return `${val} ml`;
+    }
+    if (unit === 'unit') return `${val} Unit`;
+    return `${val} Btl`;
+  };
+
+  const btlSizeLabel = (ml: number) => {
+    if(ml >= 1000) return `${ml/1000} L`;
+    return `${ml} ml`;
+  };
+
   const fullCocktailList = useMemo(() => {
     const glass45 = spiritsByGlass45.map(name => ({
       id: `glass-45-${name.toLowerCase().replace(/\s+/g, '-')}`,
@@ -389,15 +407,20 @@ export default function App() {
       ingredients: [{ name, ml: 30, isAlcohol: true }]
     }));
 
-    const btl = spiritsByBottle.map(item => ({
-      id: `btl-${item.name.toLowerCase().replace(/\s+/g, '-')}`,
-      name: `${item.name} (${item.ml}ml Btl)`,
-      category: 'Spirit by Bottle' as const,
-      ingredients: [{ name: item.name, ml: item.ml, isAlcohol: true }]
-    }));
+    const btl = spiritsByBottle.map(item => {
+      const isAlch = !manualNonAlcoholic.includes(item.name);
+      const unit = stockInputUnits[item.name] || (isAlch ? 'ml' : 'ml');
+      const formattedSize = formatIngredientSize(item.ml, unit);
+      return {
+        id: `btl-${item.name.toLowerCase().replace(/\s+/g, '-')}`,
+        name: `${item.name} (${formattedSize}${isAlch ? ' Btl' : ''})`,
+        category: (isAlch ? 'Spirit by Bottle' : 'Non-Alcoholic Item') as any,
+        ingredients: [{ name: item.name, ml: item.ml, isAlcohol: isAlch }]
+      };
+    });
 
     return [...cocktails, ...glass45, ...glass30, ...btl].sort((a, b) => a.name.localeCompare(b.name));
-  }, [cocktails, spiritsByGlass45, spiritsByGlass30, spiritsByBottle]);
+  }, [cocktails, spiritsByGlass45, spiritsByGlass30, spiritsByBottle, manualNonAlcoholic, stockInputUnits]);
 
   const [quantityInput, setQuantityInput] = useState('1');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -1296,11 +1319,16 @@ export default function App() {
     }
   };
 
+
   const handleSaveSpirit = async () => {
     if(!newSpiritName) return;
-    const bSize = parseInt(newSpiritBtlSize);
+    const bSizeValue = parseFloat(newSpiritBtlSize) || 0;
     const gSize = parseInt(newSpiritGlassSize);
     const pos = parseInt(newSpiritPosition) - 1;
+
+    const currentUnit = stockFilter === 'non-alcohol' ? (stockInputUnits[newSpiritName] || 'ml') : 'ml';
+    const multiplier = (currentUnit === 'l' || currentUnit === 'kg') ? 1000 : 1;
+    const bSize = bSizeValue * multiplier;
 
     if (editingSpirit) {
       const oldName = editingSpirit;
@@ -1318,7 +1346,7 @@ export default function App() {
 
       // 2. Mapping & Order
       const oldLabel = spiritMapping[oldName] || oldName;
-      const newLabel = `${newName} ${btlSizeLabel(bSize)}`;
+      const newLabel = `${newName} ${formatIngredientSize(bSize, currentUnit)}`;
       const nextMapping = { ...spiritMapping };
       delete nextMapping[oldName];
       nextMapping[newName] = newLabel;
@@ -1404,13 +1432,18 @@ export default function App() {
     const nextGlass45 = gSize === 45 ? [...new Set([...spiritsByGlass45, newSpiritName])] : spiritsByGlass45;
     const nextGlass30 = gSize === 30 ? [...new Set([...spiritsByGlass30, newSpiritName])] : spiritsByGlass30;
     const nextBottle = [...spiritsByBottle.filter(b => b.name !== newSpiritName), { name: newSpiritName, ml: bSize }];
-    const bLabel = `${newSpiritName} ${btlSizeLabel(bSize)}`;
+    const bLabel = `${newSpiritName} ${formatIngredientSize(bSize, currentUnit)}`;
     const nextMapping = { ...spiritMapping, [newSpiritName]: bLabel };
     
     // Add to manualNonAlcoholic if needed
     const nextManualNonAlch = stockFilter === 'non-alcohol' 
       ? [...new Set([...manualNonAlcoholic, newSpiritName])] 
       : manualNonAlcoholic.filter(n => n !== newSpiritName);
+
+    const nextUnits = { ...stockInputUnits };
+    if (!nextUnits[newSpiritName]) {
+      nextUnits[newSpiritName] = currentUnit;
+    }
 
     const filteredOrder = excelOrder.filter(n => n !== bLabel);
     const nextOrder = [...filteredOrder];
@@ -1424,7 +1457,7 @@ export default function App() {
         spiritMapping: nextMapping,
         excelOrder: nextOrder,
         manualNonAlcoholic: nextManualNonAlch,
-        stockInputUnits: stockInputUnits
+        stockInputUnits: nextUnits
       });
     }
 
@@ -1434,14 +1467,11 @@ export default function App() {
     setSpiritMapping(nextMapping);
     setExcelOrder(nextOrder);
     setManualNonAlcoholic(nextManualNonAlch);
+    setStockInputUnits(nextUnits);
 
     setIsSpiritDialogOpen(false);
   };
 
-  const btlSizeLabel = (ml: number) => {
-    if(ml >= 1000) return `${ml/1000} L`;
-    return `${ml} ml`;
-  };
 
   const handleRemoveSpirits = async () => {
     if(spiritsToRemove.length === 0) return;
@@ -1740,7 +1770,15 @@ export default function App() {
                          className="pl-10 bg-zinc-950 border-zinc-800 rounded-xl h-11 md:h-12"
                        />
                      </div>
-                     <Button onClick={() => { setEditingSpirit(null); setIsSpiritDialogOpen(true); setSpiritMode('add'); }} className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 rounded-xl px-6 h-11 md:h-12 gap-2 font-bold text-xs uppercase text-white">
+                      <Button onClick={() => { 
+                        setEditingSpirit(null); 
+                        setNewSpiritName('');
+                        setNewSpiritBtlSize(stockFilter === 'alcohol' ? '750' : '1');
+                        setNewSpiritGlassSize('45');
+                        setNewSpiritPosition('');
+                        setIsSpiritDialogOpen(true); 
+                        setSpiritMode('add'); 
+                      }} className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 rounded-xl px-6 h-11 md:h-12 gap-2 font-bold text-xs uppercase text-white">
                        <Plus className="w-4 h-4" /> {stockFilter === 'alcohol' ? 'ADD OR DELIST SPIRIT' : 'ADD OR DELETE ITEM'}
                      </Button>
                   </div>
@@ -1781,7 +1819,11 @@ export default function App() {
                                   onClick={() => {
                                      setEditingSpirit(s.ingredientName);
                                      setNewSpiritName(s.ingredientName);
-                                     setNewSpiritBtlSize(size.toString());
+                                     
+                                     const unit = stockInputUnits[s.ingredientName] || 'ml';
+                                     const divisor = (unit === 'l' || unit === 'kg') ? 1000 : 1;
+                                     setNewSpiritBtlSize((size / divisor).toString());
+
                                      const isG45 = spiritsByGlass45.includes(s.ingredientName);
                                      const isG30 = spiritsByGlass30.includes(s.ingredientName);
                                      setNewSpiritGlassSize(isG45 ? "45" : (isG30 ? "30" : "0"));
@@ -1800,7 +1842,7 @@ export default function App() {
                              <div className="flex items-center gap-2">
                                 {(() => {
                                   const nameStr = typeof s.ingredientName === 'string' ? s.ingredientName : '';
-                                  const currentUnit = stockInputUnits[nameStr] || (nameStr.toLowerCase().includes('grams') || nameStr.toLowerCase().includes('(g)') ? 'g' : 'btl');
+                                  const currentUnit = stockInputUnits[nameStr] || (stockFilter === 'alcohol' ? 'btl' : (nameStr.toLowerCase().includes('grams') || nameStr.toLowerCase().includes('(g)') ? 'g' : 'ml'));
                                   let displayVal = 0;
                                   let multiplier = size;
                                   
