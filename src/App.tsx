@@ -903,20 +903,34 @@ export default function App() {
   const beverageOrderAnalysis = useMemo(() => {
     const fourDaysAgo = Date.now() - (4 * 24 * 60 * 60 * 1000);
     const recentLogs = logs.filter(log => log.timestamp > fourDaysAgo);
+    const recentBatchLogs = batchLogs.filter(log => log.timestamp > fourDaysAgo);
     
     const drinkTallies: { [id: string]: number } = {};
+    const batchTallies: { [id: string]: number } = {};
     const ingredientDepletion: { [name: string]: number } = {};
 
+    // 1. Depletion from individual sales
     recentLogs.forEach(log => {
       log.usage.forEach(record => {
         drinkTallies[record.cocktailId] = (drinkTallies[record.cocktailId] || 0) + record.quantity;
         const item = fullCocktailList.find(c => c.id === record.cocktailId);
         item?.ingredients.forEach(ing => {
-          if (ing.isAlcohol) {
-            ingredientDepletion[ing.name] = (ingredientDepletion[ing.name] || 0) + (ing.ml * record.quantity);
-          }
+          // Track all ingredients (not just alcohol as user asked for syrups/tea too)
+          ingredientDepletion[ing.name] = (ingredientDepletion[ing.name] || 0) + (ing.ml * record.quantity);
         });
       });
+    });
+
+    // 2. Depletion from batch production
+    recentBatchLogs.forEach(blog => {
+      batchTallies[blog.recipeId] = (batchTallies[blog.recipeId] || 0) + blog.targetVolume;
+      const recipe = batchRecipes.find(r => r.id === blog.recipeId);
+      if (recipe) {
+        const factor = blog.targetVolume / recipe.baseVolume;
+        recipe.ingredients.forEach(ing => {
+          ingredientDepletion[ing.name] = (ingredientDepletion[ing.name] || 0) + (ing.ml * factor);
+        });
+      }
     });
 
     const topDrinks = Object.entries(drinkTallies)
@@ -928,6 +942,14 @@ export default function App() {
       .sort((a, b) => b.quantity - a.quantity)
       .slice(0, 8);
 
+    const topBatches = Object.entries(batchTallies)
+      .map(([id, vol]) => ({
+        item: batchRecipes.find(r => r.id === id),
+        volume: vol
+      }))
+      .filter(b => b.item)
+      .sort((a, b) => b.volume - a.volume);
+
     const sortedDepletion = Object.entries(ingredientDepletion)
       .map(([name, totalMl]) => {
         const avgDailyMl = totalMl / 4;
@@ -937,8 +959,8 @@ export default function App() {
       })
       .sort((a, b) => b.totalMl - a.totalMl);
 
-    return { topDrinks, sortedDepletion };
-  }, [logs, fullCocktailList]);
+    return { topDrinks, topBatches, sortedDepletion };
+  }, [logs, batchLogs, fullCocktailList, batchRecipes]);
 
   const pushToHistory = () => {
     setHistory(prev => [{ usage: [...usage], stock: [...stock] }, ...prev].slice(0, 10));
@@ -1771,46 +1793,61 @@ export default function App() {
             </TabsContent>
 
             <TabsContent value="beverage-order" className="m-0 space-y-6 pb-20">
-              <div className="flex justify-between items-center bg-zinc-900 border border-zinc-800 p-6 rounded-[32px]">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-zinc-900 border border-zinc-800 p-6 rounded-[32px] gap-4 shadow-xl">
                 <div>
                   <h2 className="text-2xl font-bold uppercase tracking-tight text-rose-500">Beverage Order Analytics</h2>
-                  <p className="text-sm text-zinc-500">Last 4 days depletion analysis and ordering suggestions</p>
+                  <p className="text-sm text-zinc-500">Combined depletion analysis (Sales + Batching Events) for last 4 days</p>
                 </div>
-                <div className="flex items-center gap-2 px-4 py-2 bg-rose-500/10 border border-rose-500/20 rounded-2xl">
-                  <Zap className="w-4 h-4 text-rose-500" />
-                  <span className="text-xs font-bold text-rose-500 uppercase">Velocity Based</span>
+                <div className="flex items-center gap-2 px-6 py-3 bg-rose-500/10 border border-rose-500/20 rounded-2xl">
+                  <Zap className="w-5 h-5 text-rose-500 animate-pulse" />
+                  <span className="text-xs font-bold text-rose-500 uppercase tracking-widest">Velocity Integrated</span>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                 {/* Top Sellers Column */}
-                 <div className="space-y-6">
-                    <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500 ml-2">Top Sold (4 Days)</h3>
-                    <div className="space-y-3">
-                       {beverageOrderAnalysis.topDrinks.length === 0 ? (
-                         <Card className="bg-zinc-900 border-zinc-800 p-12 text-center text-zinc-700 rounded-[32px]">
-                           <p className="text-[10px] uppercase">No data for last 4 days</p>
-                         </Card>
-                       ) : beverageOrderAnalysis.topDrinks.map((d, i) => (
-                         <Card key={i} className="bg-zinc-900 border-zinc-800 p-4 rounded-2xl flex items-center justify-between group hover:border-rose-500/30 transition-all">
-                            <div className="flex items-center gap-4">
-                               <div className="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center text-[10px] font-bold text-zinc-500 font-mono">#{i+1}</div>
-                               <div>
-                                 <p className="text-sm font-bold text-white uppercase tracking-tight">{d.item?.name}</p>
-                                 <p className="text-[10px] text-zinc-500">{d.item?.category}</p>
-                               </div>
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                 {/* Activity Stats Column */}
+                 <div className="space-y-8 lg:col-span-1">
+                    <div>
+                       <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500 mb-4 px-2">Top Sales Activity</h3>
+                       <div className="space-y-2">
+                          {beverageOrderAnalysis.topDrinks.length === 0 ? (
+                            <Card className="bg-zinc-900/50 border-zinc-800 p-8 text-center text-zinc-700 rounded-3xl border-dashed">
+                              <p className="text-[10px] uppercase font-mono italic tracking-tighter">Awaiting Sales Logs</p>
+                            </Card>
+                          ) : beverageOrderAnalysis.topDrinks.map((d, i) => (
+                            <div key={i} className="bg-zinc-900 border border-zinc-800 p-3 rounded-2xl flex items-center justify-between hover:bg-zinc-800/50 transition-colors">
+                                <div className="flex items-center gap-3">
+                                   <span className="text-[10px] font-mono text-rose-500 font-bold opacity-50">{i+1}</span>
+                                   <p className="text-xs font-bold text-white uppercase truncate max-w-[100px]">{d.item?.name}</p>
+                                </div>
+                                <Badge className="bg-zinc-800 border-none font-mono text-[10px] text-zinc-400">{d.quantity}</Badge>
                             </div>
-                            <div className="text-right">
-                               <p className="text-lg font-bold text-rose-500 font-mono">{d.quantity}</p>
-                               <p className="text-[10px] text-zinc-600 uppercase font-bold">Qty</p>
+                          ))}
+                       </div>
+                    </div>
+
+                    <div>
+                       <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-blue-500/70 mb-4 px-2">Batch Production Activity</h3>
+                       <div className="space-y-2">
+                          {beverageOrderAnalysis.topBatches.length === 0 ? (
+                            <Card className="bg-zinc-900/50 border-zinc-800 p-8 text-center text-zinc-700 rounded-3xl border-dashed">
+                              <p className="text-[10px] uppercase font-mono italic tracking-tighter">No Batches Logged</p>
+                            </Card>
+                          ) : beverageOrderAnalysis.topBatches.map((b, i) => (
+                            <div key={i} className="bg-zinc-900 border border-zinc-800 p-3 rounded-2xl flex items-center justify-between hover:bg-zinc-800/50 transition-colors">
+                                <div className="flex items-center gap-3">
+                                   <span className="text-[10px] font-mono text-blue-500 font-bold opacity-50">{i+1}</span>
+                                   <p className="text-xs font-bold text-white uppercase truncate max-w-[100px]">{b.item?.name}</p>
+                                </div>
+                                <Badge className="bg-blue-500/10 text-blue-400 border-none font-mono text-[10px]">{b.volume}L</Badge>
                             </div>
-                         </Card>
-                       ))}
+                          ))}
+                       </div>
                     </div>
                  </div>
 
-                 {/* Order Suggestions Column */}
-                 <div className="lg:col-span-2 space-y-6">
+                 {/* Detailed Ordering List */}
+                 <div className="lg:col-span-3 space-y-6">
                     <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500 ml-2">Suggested Spirits Reorder</h3>
                     <Card className="bg-zinc-900 border-zinc-800 rounded-[32px] overflow-hidden">
                        <div className="overflow-x-auto">
@@ -2195,23 +2232,58 @@ export default function App() {
 </Dialog>
 
       <Dialog open={!!selectedCocktail} onOpenChange={open => !open && setSelectedCocktail(null)}>
-        <DialogContent className="bg-zinc-900 border-zinc-800 text-white max-w-sm rounded-[32px] p-8">
-           <div className="text-center mb-8">
-             <div className="w-16 h-16 bg-blue-600/20 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-blue-500/20"><GlassWater className="text-blue-500 w-8 h-8" /></div>
-             <h2 className="text-xl font-bold">{selectedCocktail?.name}</h2>
-             <p className="text-xs text-zinc-500 mt-2">{selectedCocktail?.ingredients.map(i=>`${i.ml}ml ${i.name}`).join(' / ')}</p>
+        <DialogContent 
+          className="bg-zinc-900 border-zinc-800 text-white max-w-sm rounded-[32px] p-8"
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => e.preventDefault()}
+        >
+           <div className="flex justify-between items-center mb-6">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => setSelectedCocktail(null)}
+                className="text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 rounded-xl px-4 uppercase text-[10px] font-bold tracking-widest"
+              >
+                Cancel
+              </Button>
+              <div className="w-10 h-10 bg-blue-600/20 rounded-xl flex items-center justify-center border border-blue-500/20"><GlassWater className="text-blue-500 w-5 h-5" /></div>
            </div>
 
-           <div className="bg-black border border-zinc-800 rounded-3xl p-6 text-center mb-8">
-             <p className="text-[10px] uppercase text-zinc-500 tracking-widest mb-4">Quantity Sold</p>
-             <div className="flex items-center justify-center gap-6">
-                <Button variant="outline" size="icon" onClick={() => setQuantityInput(Math.max(1, parseInt(quantityInput)-1).toString())} className="rounded-xl">—</Button>
-                <input ref={quantityInputRef} type="number" value={quantityInput} onChange={e => setQuantityInput(e.target.value.replace(/\D/g,''))} onFocus={e => e.target.select()} className="w-20 text-3xl font-mono font-bold text-center bg-transparent border-none focus:ring-0 outline-none" />
-                <Button variant="outline" size="icon" onClick={() => setQuantityInput((parseInt(quantityInput)+1).toString())} className="rounded-xl">+</Button>
+           <div className="text-center mb-8">
+             <h2 className="text-xl font-bold uppercase tracking-tight">{selectedCocktail?.name}</h2>
+             <p className="text-[10px] text-zinc-500 mt-2 font-mono uppercase truncate px-4">{selectedCocktail?.ingredients.map(i=>`${i.ml}ml ${i.name}`).join(' / ')}</p>
+           </div>
+
+           <div className="bg-black border border-zinc-800 rounded-3xl p-8 text-center mb-8 shadow-inner">
+             <p className="text-[10px] uppercase text-zinc-500 tracking-widest mb-6 font-bold">Adjust Quantity</p>
+             <div className="flex items-center justify-center gap-8">
+                <Button variant="outline" size="icon" onClick={() => setQuantityInput(Math.max(1, parseInt(quantityInput)-1).toString())} className="rounded-full w-12 h-12 bg-zinc-900 border-zinc-800 hover:bg-zinc-800 hover:border-zinc-700 active:scale-95 transition-all text-xl font-bold">—</Button>
+                <input 
+                  ref={quantityInputRef} 
+                  type="number" 
+                  value={quantityInput} 
+                  onChange={e => setQuantityInput(e.target.value.replace(/\D/g,''))} 
+                  onFocus={e => e.target.select()}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddUsage();
+                    }
+                  }}
+                  className="w-24 text-5xl font-mono font-bold text-center bg-transparent border-none focus:ring-0 outline-none hover:text-blue-500 transition-colors" 
+                />
+                <Button variant="outline" size="icon" onClick={() => setQuantityInput((parseInt(quantityInput)+1).toString())} className="rounded-full w-12 h-12 bg-zinc-900 border-zinc-800 hover:bg-zinc-800 hover:border-zinc-700 active:scale-95 transition-all text-xl font-bold">+</Button>
              </div>
            </div>
            
-           <DialogFooter><Button onClick={handleAddUsage} className="w-full bg-white text-black font-bold h-14 rounded-2xl">RECORD SALE</Button></DialogFooter>
+           <DialogFooter>
+             <Button 
+               onClick={handleAddUsage} 
+               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold h-16 rounded-[24px] text-lg uppercase tracking-tight shadow-lg shadow-blue-900/20 group"
+             >
+               RECORD SALE <ChevronRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+             </Button>
+           </DialogFooter>
         </DialogContent>
       </Dialog>
        <Dialog open={!!selectedLog} onOpenChange={open => !open && setSelectedLog(null)}>
