@@ -439,6 +439,7 @@ export default function App() {
   const [newSpiritBtlSize, setNewSpiritBtlSize] = useState('750');
   const [newSpiritGlassSize, setNewSpiritGlassSize] = useState('45');
   const [newSpiritPosition, setNewSpiritPosition] = useState('');
+  const [newSpiritUnit, setNewSpiritUnit] = useState('ml');
   const [spiritsToRemove, setSpiritsToRemove] = useState<string[]>([]);
   const [recipeName, setRecipeName] = useState('');
   const [recipeIngredients, setRecipeIngredients] = useState<Ingredient[]>([]);
@@ -1326,7 +1327,7 @@ export default function App() {
     const gSize = parseInt(newSpiritGlassSize);
     const pos = parseInt(newSpiritPosition) - 1;
 
-    const currentUnit = stockFilter === 'non-alcohol' ? (stockInputUnits[newSpiritName] || 'ml') : 'ml';
+    const currentUnit = stockFilter === 'non-alcohol' ? newSpiritUnit : 'ml';
     const multiplier = (currentUnit === 'l' || currentUnit === 'kg') ? 1000 : 1;
     const bSize = bSizeValue * multiplier;
 
@@ -1423,6 +1424,8 @@ export default function App() {
       setCocktails(nextCocktails);
       setBatchRecipes(nextBatchRecipes);
       setStock(nextStock);
+      setManualNonAlcoholic(nextManualNonAlch);
+      setStockInputUnits(nextUnits);
       setEditingSpirit(null);
       setIsSpiritDialogOpen(false);
       return;
@@ -1441,9 +1444,7 @@ export default function App() {
       : manualNonAlcoholic.filter(n => n !== newSpiritName);
 
     const nextUnits = { ...stockInputUnits };
-    if (!nextUnits[newSpiritName]) {
-      nextUnits[newSpiritName] = currentUnit;
-    }
+    nextUnits[newSpiritName] = currentUnit;
 
     const filteredOrder = excelOrder.filter(n => n !== bLabel);
     const nextOrder = [...filteredOrder];
@@ -1774,6 +1775,7 @@ export default function App() {
                         setEditingSpirit(null); 
                         setNewSpiritName('');
                         setNewSpiritBtlSize(stockFilter === 'alcohol' ? '750' : '1');
+                        setNewSpiritUnit(stockFilter === 'alcohol' ? 'ml' : 'ml');
                         setNewSpiritGlassSize('45');
                         setNewSpiritPosition('');
                         setIsSpiritDialogOpen(true); 
@@ -1821,6 +1823,7 @@ export default function App() {
                                      setNewSpiritName(s.ingredientName);
                                      
                                      const unit = stockInputUnits[s.ingredientName] || 'ml';
+                                     setNewSpiritUnit(unit);
                                      const divisor = (unit === 'l' || unit === 'kg') ? 1000 : 1;
                                      setNewSpiritBtlSize((size / divisor).toString());
 
