@@ -434,8 +434,13 @@ export default function App() {
 
     Object.keys(spiritMapping).forEach(k => {
       if (!allInternalInfo.has(k)) {
-        allInternalInfo.set(k, !manualNonAlcoholic.includes(k));
+        allInternalInfo.set(k, true);
       }
+    });
+
+    // Final override pass: manual non-alcohol settings always win
+    manualNonAlcoholic.forEach(name => {
+      allInternalInfo.set(name, false);
     });
 
     allInternalInfo.forEach((isAlch, internalName) => {
@@ -1157,7 +1162,12 @@ export default function App() {
         const matchesSearch = getExcelDisplayName(s.ingredientName).toLowerCase().includes(stockSearchQuery.toLowerCase());
         return isTargetType && matchesSearch;
       })
-      .sort((a, b) => getExcelSortIndex(a.ingredientName) - getExcelSortIndex(b.ingredientName));
+      .sort((a, b) => {
+        if (stockFilter === 'non-alcohol') {
+          return getExcelDisplayName(a.ingredientName).localeCompare(getExcelDisplayName(b.ingredientName));
+        }
+        return getExcelSortIndex(a.ingredientName) - getExcelSortIndex(b.ingredientName);
+      });
   }, [stockStatus, excelOrder, stockSearchQuery, stockFilter, ingredientAlcoholMap]);
 
   const sortedStock = useMemo(() => {
@@ -1169,7 +1179,12 @@ export default function App() {
         const matchesSearch = getExcelDisplayName(s.ingredientName).toLowerCase().includes(stockSearchQuery.toLowerCase());
         return isTargetType && matchesSearch;
       })
-      .sort((a, b) => getExcelSortIndex(a.ingredientName) - getExcelSortIndex(b.ingredientName));
+      .sort((a, b) => {
+        if (stockFilter === 'non-alcohol') {
+          return getExcelDisplayName(a.ingredientName).localeCompare(getExcelDisplayName(b.ingredientName));
+        }
+        return getExcelSortIndex(a.ingredientName) - getExcelSortIndex(b.ingredientName);
+      });
   }, [stock, excelOrder, stockSearchQuery, stockFilter, ingredientAlcoholMap]);
 
   const filteredCocktails = useMemo(() => {
@@ -1433,6 +1448,14 @@ export default function App() {
     const nextGlass45 = spiritsByGlass45.filter(s => !spiritsToRemove.includes(s));
     const nextGlass30 = spiritsByGlass30.filter(s => !spiritsToRemove.includes(s));
     const nextBottle = spiritsByBottle.filter(s => !spiritsToRemove.includes(s.name));
+    const nextManualNonAlch = manualNonAlcoholic.filter(n => !spiritsToRemove.includes(n));
+    const nextMapping = { ...spiritMapping };
+    const nextUnits = { ...stockInputUnits };
+    spiritsToRemove.forEach(s => {
+      delete nextMapping[s];
+      delete nextUnits[s];
+    });
+    const nextOrder = excelOrder.filter(o => !spiritsToRemove.some(s => o.startsWith(s)));
     
     if (user) {
       setIsSyncing(true);
@@ -1446,12 +1469,16 @@ export default function App() {
         batch.set(doc(db, 'settings', user.uid), {
           spiritsByGlass45: nextGlass45,
           spiritsByGlass30: nextGlass30,
-          spiritsByBottle: nextBottle
+          spiritsByBottle: nextBottle,
+          spiritMapping: nextMapping,
+          excelOrder: nextOrder,
+          manualNonAlcoholic: nextManualNonAlch,
+          stockInputUnits: nextUnits
         }, { merge: true });
         
         await batch.commit();
       } catch (err) {
-        handleFirestoreError(err, 'write', 'batch-remove-spirits');
+        handleFirestoreError(err, 'write', 'batch-remove-items');
       } finally {
         setIsSyncing(false);
       }
@@ -1460,6 +1487,11 @@ export default function App() {
     setSpiritsByGlass45(nextGlass45);
     setSpiritsByGlass30(nextGlass30);
     setSpiritsByBottle(nextBottle);
+    setSpiritMapping(nextMapping);
+    setExcelOrder(nextOrder);
+    setManualNonAlcoholic(nextManualNonAlch);
+    setStockInputUnits(nextUnits);
+    setStock(prev => prev.filter(s => !spiritsToRemove.includes(s.ingredientName)));
     setCocktails(prev => prev.filter(c => !spiritsToRemove.includes(c.name)));
     setSpiritsToRemove([]);
     setIsSpiritDialogOpen(false);
@@ -2740,10 +2772,12 @@ export default function App() {
                      )}
                    </div>
                  </div>
-                 <div className="space-y-2">
-                   <label className="text-[10px] uppercase text-zinc-500 font-bold tracking-widest">Position in Table (1-{excelOrder.length + 1})</label>
-                   <Input type="number" value={newSpiritPosition} onChange={e => setNewSpiritPosition(e.target.value)} className="bg-zinc-900 border-zinc-800 h-12 rounded-xl" placeholder="e.g. 5" />
-                 </div>
+                 {stockFilter === 'alcohol' && (
+                   <div className="space-y-2">
+                     <label className="text-[10px] uppercase text-zinc-500 font-bold tracking-widest">Position in Table (1-{excelOrder.length + 1})</label>
+                     <Input type="number" value={newSpiritPosition} onChange={e => setNewSpiritPosition(e.target.value)} className="bg-zinc-900 border-zinc-800 h-12 rounded-xl" placeholder="e.g. 5" />
+                   </div>
+                 )}
                  <Button onClick={handleSaveSpirit} className={`w-full h-14 ${editingSpirit ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'} text-white font-bold rounded-2xl`}>
                    {editingSpirit ? (stockFilter === 'alcohol' ? 'UPDATE SPIRIT CONFIG' : 'UPDATE ITEM CONFIG') : (stockFilter === 'alcohol' ? 'ADD TO STOCK' : 'ADD ITEM')}
                  </Button>
@@ -2753,7 +2787,10 @@ export default function App() {
                 <label className="text-[10px] uppercase text-zinc-500 font-bold tracking-widest">Select items to remove</label>
                 <ScrollArea className="h-64 pr-4 border border-zinc-900 rounded-xl p-4">
                   <div className="space-y-2">
-                    {[...allIngredients].sort((a,b) => a.internalName.localeCompare(b.internalName)).map(i => (
+                    {[...allIngredients]
+                      .filter(i => i.isAlcohol === (stockFilter === 'alcohol'))
+                      .sort((a,b) => getExcelDisplayName(a.internalName).localeCompare(getExcelDisplayName(b.internalName)))
+                      .map(i => (
                       <div key={i.internalName} className="flex items-center gap-3 p-3 bg-zinc-900 rounded-lg hover:bg-zinc-800 transition-colors">
                         <input 
                           type="checkbox" 
