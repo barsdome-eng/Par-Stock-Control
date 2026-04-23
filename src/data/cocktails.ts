@@ -114,6 +114,9 @@ export const cocktails: Cocktail[] = [
       { name: 'Grey Goose', ml: 45, isAlcohol: true },
       { name: 'Kwai Feh Lychee Liqueur', ml: 15, isAlcohol: true },
       { name: 'Masottina Prosecco', ml: 60, isAlcohol: true },
+      { name: 'Dried butterfly pea flowers (grams)', ml: 0.65, isAlcohol: false },
+      { name: 'Simple syrup', ml: 2.5, isAlcohol: false },
+      { name: 'Agave syrup', ml: 2.5, isAlcohol: false }
     ],
   },
   {
@@ -181,6 +184,9 @@ export const cocktails: Cocktail[] = [
       { name: 'Bombay Sapphire', ml: 22.5, isAlcohol: true },
       { name: 'Demonio Los Andes Pisco', ml: 30, isAlcohol: true },
       { name: 'Aperol', ml: 15, isAlcohol: true },
+      { name: 'White Wine (Sauvignon Blanc) 750 ml', ml: 19.5, isAlcohol: true },
+      { name: 'Passionfruit Monin 700 ml', ml: 3.25, isAlcohol: false },
+      { name: 'Strawberry Monin 700 ml', ml: 9.75, isAlcohol: false }
     ],
   },
   {
@@ -213,6 +219,8 @@ export const cocktails: Cocktail[] = [
       { name: 'Patron Reposado', ml: 37.5, isAlcohol: true },
       { name: 'Martini Bianco', ml: 7.5, isAlcohol: true },
       { name: 'Blue Curacao', ml: 7.5, isAlcohol: true },
+      { name: 'Monin Rose 700 ml', ml: 10, isAlcohol: false },
+      { name: 'Hops (grams)', ml: 0.5, isAlcohol: false }
     ],
   },
   {
@@ -759,6 +767,27 @@ export const cocktails: Cocktail[] = [
     category: 'Cocktail',
     ingredients: [
       { name: 'Bombay Sapphire', ml: 60, isAlcohol: true },
+    ],
+  },
+  {
+    id: 'temple-run',
+    name: 'Temple Run',
+    category: 'Cocktail',
+    ingredients: [
+      { name: 'Mango Juice', ml: 69, isAlcohol: false },
+      { name: 'Coconut Juice', ml: 43, isAlcohol: false },
+      { name: 'Silpin Jasmine Rice Syrup 500 ml', ml: 2.5, isAlcohol: false },
+      { name: 'Coconut Monin 700 ml', ml: 2.5, isAlcohol: false }
+    ],
+  },
+  {
+    id: 'lost-in-chatuchak',
+    name: 'Lost in Chatuchak',
+    category: 'Cocktail',
+    ingredients: [
+      { name: 'Guava Juice', ml: 66, isAlcohol: false },
+      { name: 'Hale Blue Boy Jasmine 710 ml', ml: 5.5, isAlcohol: false },
+      { name: 'Silpin Tamarind Syrup 500 ml', ml: 11, isAlcohol: false }
     ],
   },
 ];

@@ -164,6 +164,8 @@ const initialExcelOrder = [
   "White Wine (Sauvignon Blanc) 750 ml",
 ];
 
+const EXCLUDED_INGREDIENTS = ['lemon juice', 'lime juice', 'simple syrup'];
+
 const initialMapping: { [key: string]: string } = {
   "Roku": "Roku Gin 700 ml",
   "Bombay Sapphire": "Bombay Sapphire Gin 750 ml",
@@ -276,16 +278,50 @@ const initialMapping: { [key: string]: string } = {
   "Dry Vermouth": "Cocchi Di Torino Extra Dry Vermouth 500 ml",
   "Kraken Spiced Rum": "Kraken Spiced Rum 700 ml",
   "Emishiki Sensation Sake": "Emishiki Sensation Sake 1.5 L",
+  "Hops (grams)": "Hops (grams)",
+  "Dried butterfly pea flowers (grams)": "Dried Butterfly Pea Flowers (grams)",
+  "Mango Juice": "Mango Juice (1L)",
+  "Coconut Juice": "Coconut Juice (1L)",
+  "Guava Juice": "Guava Juice (1L)",
+  "Simple syrup": "Simple Syrup (1L)",
+  "Agave syrup": "Agave Syrup (1L)",
+  "Ginger ale": "Ginger Ale (330ml)",
+  "Tonic water": "Tonic Water (330ml)",
+  "Club soda": "Club Soda (330ml)",
+  "Orange juice": "Orange Juice (1L)",
+  "Pineapple juice": "Pineapple Juice (1L)",
+  "Lime juice": "Lime Juice (1L)",
+  "Lemon juice": "Lemon Juice (1L)",
+  "Silpin Jasmine Rice Syrup 500 ml": "Silpin Jasmine Rice Syrup 500 ml",
+  "Silpin Tamarind Syrup 500 ml": "Silpin Tamarind Syrup 500 ml",
+  "Monin Rose 700 ml": "Monin Rose Syrup 700 ml",
+  "Coconut Monin 700 ml": "Monin Coconut Syrup 700 ml",
+  "Passionfruit Monin 700 ml": "Monin Passionfruit Syrup 700 ml",
+  "Strawberry Monin 700 ml": "Monin Strawberry Syrup 700 ml",
+  "Pineapple Monin 700 ml": "Monin Pineapple Syrup 700 ml",
+  "Butterscotch Monin 700 ml": "Monin Butterscotch Syrup 700 ml",
+  "White Wine (Sauvignon Blanc) 750 ml": "White Wine (Sauvignon Blanc) 750 ml",
+  "Earl Grey tea (grams)": "Earl Grey Tea (grams)",
+  "Oolong tea (grams)": "Oolong Tea (grams)",
+  "Palm sugar (grams)": "Palm Sugar (grams)",
+  "Citric acid (grams)": "Citric Acid (grams)",
+  "Malic acid (grams)": "Malic Acid (grams)",
+  "Salt (grams)": "Salt (grams)",
+  "Hale Blue Boy Jasmine 710 ml": "Hale Blue Boy Jasmine 710 ml",
 };
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [isSigningIn, setIsSigningIn] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [history, setHistory] = useState<{usage: UsageRecord[], stock: StockLevel[]}[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [recipeSearchQuery, setRecipeSearchQuery] = useState('');
   const [stockSearchQuery, setStockSearchQuery] = useState('');
+  const [stockFilter, setStockFilter] = useState<'alcohol' | 'non-alcohol'>('alcohol');
+  const [stockInputUnits, setStockInputUnits] = useState<{[name: string]: string}>({});
+  const [manualNonAlcoholic, setManualNonAlcoholic] = useState<string[]>([]);
   const [batchSearchQuery, setBatchSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<'All' | 'Cocktail' | 'Spirit by Glass' | 'Spirit by Bottle'>('All');
   const [activeTab, setActiveTab] = useState('par-cutting');
@@ -387,25 +423,34 @@ export default function App() {
   const [newIngMl, setNewIngMl] = useState('');
 
   const allIngredients = useMemo(() => {
-    const displayToInternal = new Map<string, string>();
-    const allInternalNames = new Set<string>();
+    const displayToInternal = new Map<string, { internalName: string, isAlcohol: boolean }>();
+    const allInternalInfo = new Map<string, boolean>();
     
     fullCocktailList.forEach(c => c.ingredients.forEach(i => {
-      if (i.isAlcohol) allInternalNames.add(i.name);
+      // If we've seen it as alcohol once, keep it as alcohol
+      const existing = allInternalInfo.get(i.name);
+      allInternalInfo.set(i.name, existing || i.isAlcohol || false);
     }));
-    Object.keys(spiritMapping).forEach(k => allInternalNames.add(k));
 
-    allInternalNames.forEach(internalName => {
+    Object.keys(spiritMapping).forEach(k => {
+      if (!allInternalInfo.has(k)) {
+        allInternalInfo.set(k, !manualNonAlcoholic.includes(k));
+      }
+    });
+
+    allInternalInfo.forEach((isAlch, internalName) => {
+      if (EXCLUDED_INGREDIENTS.includes(internalName.toLowerCase())) return;
       const displayName = spiritMapping[internalName] || internalName;
       if (!displayToInternal.has(displayName)) {
-        displayToInternal.set(displayName, internalName);
+        displayToInternal.set(displayName, { internalName, isAlcohol: isAlch });
       }
     });
 
     return Array.from(displayToInternal.values());
   }, [fullCocktailList, spiritMapping]);
 
-  const getExcelDisplayName = (internalName: string) => {
+  const getExcelDisplayName = (internalName: any) => {
+    if (typeof internalName !== 'string') return '';
     return spiritMapping[internalName] || internalName;
   };
 
@@ -422,29 +467,35 @@ export default function App() {
     if (cached) {
       try {
         const parsed = JSON.parse(cached);
-        const cacheMap = new Map(parsed.map((s: StockLevel) => [s.ingredientName, s.initialMl]));
-        // We initialize with what's in local storage, but mapped to our dynamic ingredient list
-        return allIngredients.map(name => ({
-          ingredientName: name,
-          initialMl: cacheMap.get(name) || 0
-        }));
+        // Safety check to prevent objects leaking into ingredientName
+        const isValid = Array.isArray(parsed) && parsed.every(s => s && typeof s.ingredientName === 'string');
+        
+        if (isValid) {
+          const cacheMap = new Map(parsed.map((s: StockLevel) => [s.ingredientName, s.initialMl]));
+          // We initialize with what's in local storage, but mapped to our dynamic ingredient list
+          return allIngredients.map(i => ({
+            ingredientName: i.internalName,
+            initialMl: cacheMap.get(i.internalName) || 0
+          }));
+        }
       } catch (e) {
         console.error("Cache parse error", e);
       }
     }
-    return allIngredients.map(name => ({ ingredientName: name, initialMl: 0 }));
+    return allIngredients.map(i => ({ ingredientName: i.internalName, initialMl: 0 }));
   });
 
   // Sync missing items to stock if allIngredients changes
   useEffect(() => {
     setStock(prev => {
       const currentNames = new Set(prev.map(s => s.ingredientName));
-      const hasChanged = allIngredients.some(name => !currentNames.has(name)) || prev.some(s => !allIngredients.includes(s.ingredientName));
+      const hasChanged = allIngredients.some(i => !currentNames.has(i.internalName)) || 
+                        prev.some(s => !allIngredients.find(ai => ai.internalName === s.ingredientName));
       
       if (hasChanged) {
-        return allIngredients.map(name => {
-          const existing = prev.find(s => s.ingredientName === name);
-          return existing ? existing : { ingredientName: name, initialMl: 0 };
+        return allIngredients.map(i => {
+          const existing = prev.find(s => s.ingredientName === i.internalName);
+          return existing || { ingredientName: i.internalName, initialMl: 0 };
         });
       }
       return prev;
@@ -603,8 +654,10 @@ export default function App() {
         setSpiritsByBottle(initialBottle);
         setExcelOrder(initialExcelOrder);
         setSpiritMapping(initialMapping);
+        setManualNonAlcoholic([]);
+        setStockInputUnits({});
         setLogs([]);
-        setStock(allIngredients.map(name => ({ ingredientName: name, initialMl: 0 })));
+        setStock(allIngredients.map(i => ({ ingredientName: i.internalName, initialMl: 0 })));
         setHistory([]);
       }
     });
@@ -662,6 +715,8 @@ export default function App() {
         if (data.spiritsByBottle) setSpiritsByBottle(data.spiritsByBottle);
         if (data.excelOrder) setExcelOrder(data.excelOrder);
         if (data.spiritMapping) setSpiritMapping(data.spiritMapping);
+        if (data.manualNonAlcoholic) setManualNonAlcoholic(data.manualNonAlcoholic);
+        if (data.stockInputUnits) setStockInputUnits(data.stockInputUnits);
       }
     });
 
@@ -800,6 +855,18 @@ export default function App() {
     }
   }, [selectedCocktail]);
 
+  const handleSignIn = async () => {
+    if (isSigningIn) return;
+    setIsSigningIn(true);
+    try {
+      await signIn();
+    } catch (err) {
+      console.error("Sign in failed:", err);
+    } finally {
+      setIsSigningIn(false);
+    }
+  };
+
   const SIGNATURE_COCKTAILS = ['Dome266', 'Dome Colada', 'Sukhumvit After Dark', 'Khaosan Regret', 'Jodd Fair Gluttony', 'Sunset at Chao Phraya', 'BTS Highball', 'Hotel Lobby Drams'];
 
   const monthlySummary = useMemo(() => {
@@ -874,12 +941,32 @@ export default function App() {
   const getBottleSize = (name: string) => {
     if (bottleSizeMap[name]) return bottleSizeMap[name];
     const ln = getExcelDisplayName(name).toLowerCase();
+    
+    // Explicit size detection from name
+    const mlMatch = ln.match(/(\d+)\s*(ml)/i);
+    if (mlMatch) return parseInt(mlMatch[1]);
+    
+    const lMatch = ln.match(/(\d+(?:\.\d+)?)\s*(l|kg)/i);
+    if (lMatch) return parseFloat(lMatch[1]) * 1000;
+
+    const gMatch = ln.match(/(\d+)\s*(grams|g)/i);
+    if (gMatch) return parseInt(gMatch[1]);
+
     if (ln.includes(' 1 l')) return 1000;
     if (ln.includes(' 1.5 l')) return 1500;
     if (ln.includes('750 ml')) return 750;
     if (ln.includes('700 ml')) return 700;
     if (ln.includes('500 ml')) return 500;
     if (ln.includes('375 ml')) return 375;
+    
+    // Fallbacks for common non-alcohol categories
+    if (ln.includes('juice')) return 1000;
+    if (ln.includes('syrup')) return 700;
+    if (ln.includes('monin')) return 700;
+    if (ln.includes('silpin')) return 500;
+    if (ln.includes('water')) return 1000;
+    if (ln.includes('grams')) return 1000; // Assume 1kg per unit if grams in name but no size
+    
     return 750;
   };
 
@@ -915,6 +1002,7 @@ export default function App() {
         drinkTallies[record.cocktailId] = (drinkTallies[record.cocktailId] || 0) + record.quantity;
         const item = fullCocktailList.find(c => c.id === record.cocktailId);
         item?.ingredients.forEach(ing => {
+          if (EXCLUDED_INGREDIENTS.includes(ing.name.toLowerCase())) return;
           // Track all ingredients (not just alcohol as user asked for syrups/tea too)
           ingredientDepletion[ing.name] = (ingredientDepletion[ing.name] || 0) + (ing.ml * record.quantity);
         });
@@ -928,6 +1016,7 @@ export default function App() {
       if (recipe) {
         const factor = blog.targetVolume / recipe.baseVolume;
         recipe.ingredients.forEach(ing => {
+          if (EXCLUDED_INGREDIENTS.includes(ing.name.toLowerCase())) return;
           ingredientDepletion[ing.name] = (ingredientDepletion[ing.name] || 0) + (ing.ml * factor);
         });
       }
@@ -1031,11 +1120,20 @@ export default function App() {
     setUsage([]);
   };
 
+  const ingredientAlcoholMap = useMemo(() => {
+    const map = new Map<string, boolean>();
+    allIngredients.forEach(i => map.set(i.internalName, i.isAlcohol));
+    return map;
+  }, [allIngredients]);
+
   const totalUsageByIngredient = useMemo(() => {
     const totals: { [name: string]: number } = {};
     usage.forEach(r => {
       const item = fullCocktailList.find(c => c.id === r.cocktailId);
-      item?.ingredients.forEach(ing => { if (ing.isAlcohol) totals[ing.name] = (totals[ing.name] || 0) + ing.ml * r.quantity; });
+      item?.ingredients.forEach(ing => { 
+        if (EXCLUDED_INGREDIENTS.includes(ing.name.toLowerCase())) return;
+        totals[ing.name] = (totals[ing.name] || 0) + ing.ml * r.quantity; 
+      });
     });
     return totals;
   }, [usage, fullCocktailList]);
@@ -1052,15 +1150,27 @@ export default function App() {
 
   const sortedStockStatus = useMemo(() => {
     return [...stockStatus]
-      .filter(s => getExcelDisplayName(s.ingredientName).toLowerCase().includes(stockSearchQuery.toLowerCase()))
+      .filter(s => {
+        const isTargetType = stockFilter === 'alcohol' ? 
+          ingredientAlcoholMap.get(s.ingredientName) === true : 
+          ingredientAlcoholMap.get(s.ingredientName) === false;
+        const matchesSearch = getExcelDisplayName(s.ingredientName).toLowerCase().includes(stockSearchQuery.toLowerCase());
+        return isTargetType && matchesSearch;
+      })
       .sort((a, b) => getExcelSortIndex(a.ingredientName) - getExcelSortIndex(b.ingredientName));
-  }, [stockStatus, excelOrder, stockSearchQuery]);
+  }, [stockStatus, excelOrder, stockSearchQuery, stockFilter, ingredientAlcoholMap]);
 
   const sortedStock = useMemo(() => {
     return [...stock]
-      .filter(s => getExcelDisplayName(s.ingredientName).toLowerCase().includes(stockSearchQuery.toLowerCase()))
+      .filter(s => {
+        const isTargetType = stockFilter === 'alcohol' ? 
+          ingredientAlcoholMap.get(s.ingredientName) === true : 
+          ingredientAlcoholMap.get(s.ingredientName) === false;
+        const matchesSearch = getExcelDisplayName(s.ingredientName).toLowerCase().includes(stockSearchQuery.toLowerCase());
+        return isTargetType && matchesSearch;
+      })
       .sort((a, b) => getExcelSortIndex(a.ingredientName) - getExcelSortIndex(b.ingredientName));
-  }, [stock, excelOrder, stockSearchQuery]);
+  }, [stock, excelOrder, stockSearchQuery, stockFilter, ingredientAlcoholMap]);
 
   const filteredCocktails = useMemo(() => {
     return cocktails.filter(c => c.name.toLowerCase().includes(recipeSearchQuery.toLowerCase()));
@@ -1220,6 +1330,14 @@ export default function App() {
 
       // 4. Stock
       const nextStock = stock.map(s => s.ingredientName === oldName ? { ...s, ingredientName: newName } : s);
+      
+      // 5. Units & Non-Alch
+      const nextUnits = { ...stockInputUnits };
+      if (nextUnits[oldName]) {
+        nextUnits[newName] = nextUnits[oldName];
+        delete nextUnits[oldName];
+      }
+      const nextManualNonAlch = manualNonAlcoholic.map(n => n === oldName ? newName : n);
 
       if (user) {
         setIsSyncing(true);
@@ -1231,10 +1349,12 @@ export default function App() {
             spiritsByGlass30: nextGlass30,
             spiritsByBottle: nextBottle,
             spiritMapping: nextMapping,
-            excelOrder: nextOrder
+            excelOrder: nextOrder,
+            stockInputUnits: nextUnits,
+            manualNonAlcoholic: nextManualNonAlch
           }, { merge: true });
           
-          // Cascading updates to cocktails and recipes
+          // Cascading updates...
           nextCocktails.forEach(c => {
              const original = cocktails.find(o => o.id === c.id);
              if (JSON.stringify(c) !== JSON.stringify(original)) {
@@ -1272,6 +1392,11 @@ export default function App() {
     const bLabel = `${newSpiritName} ${btlSizeLabel(bSize)}`;
     const nextMapping = { ...spiritMapping, [newSpiritName]: bLabel };
     
+    // Add to manualNonAlcoholic if needed
+    const nextManualNonAlch = stockFilter === 'non-alcohol' 
+      ? [...new Set([...manualNonAlcoholic, newSpiritName])] 
+      : manualNonAlcoholic.filter(n => n !== newSpiritName);
+
     const filteredOrder = excelOrder.filter(n => n !== bLabel);
     const nextOrder = [...filteredOrder];
     nextOrder.splice(isNaN(pos) ? nextOrder.length : pos, 0, bLabel);
@@ -1282,7 +1407,9 @@ export default function App() {
         spiritsByGlass30: nextGlass30,
         spiritsByBottle: nextBottle,
         spiritMapping: nextMapping,
-        excelOrder: nextOrder
+        excelOrder: nextOrder,
+        manualNonAlcoholic: nextManualNonAlch,
+        stockInputUnits: stockInputUnits
       });
     }
 
@@ -1291,6 +1418,7 @@ export default function App() {
     setSpiritsByBottle(nextBottle);
     setSpiritMapping(nextMapping);
     setExcelOrder(nextOrder);
+    setManualNonAlcoholic(nextManualNonAlch);
 
     setIsSpiritDialogOpen(false);
   };
@@ -1384,8 +1512,8 @@ export default function App() {
                    </Button>
                  </div>
                ) : (
-                 <Button onClick={signIn} className="bg-white text-black hover:bg-zinc-200 rounded-full text-[10px] md:text-xs font-bold px-3 md:px-6 h-8 md:h-9 gap-1.5 md:gap-2">
-                   <LogIn className="w-3.5 h-3.5 md:w-4 md:h-4" /> SIGN IN
+                 <Button onClick={handleSignIn} disabled={isSigningIn} className="bg-white text-black hover:bg-zinc-200 rounded-full text-[10px] md:text-xs font-bold px-3 md:px-6 h-8 md:h-9 gap-1.5 md:gap-2">
+                   <LogIn className="w-3.5 h-3.5 md:w-4 md:h-4" /> {isSigningIn ? 'SIGNING IN...' : 'SIGN IN'}
                  </Button>
                )}
           </div>
@@ -1580,15 +1708,35 @@ export default function App() {
                          className="pl-10 bg-zinc-950 border-zinc-800 rounded-xl h-11 md:h-12"
                        />
                      </div>
-                     <Button onClick={() => { setEditingSpirit(null); setIsSpiritDialogOpen(true); setSpiritMode('add'); }} className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 rounded-xl px-6 h-11 md:h-12 gap-2 font-bold text-xs uppercase">
-                       <Plus className="w-4 h-4" /> ADD OR DELIST SPIRIT
+                     <Button onClick={() => { setEditingSpirit(null); setIsSpiritDialogOpen(true); setSpiritMode('add'); }} className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 rounded-xl px-6 h-11 md:h-12 gap-2 font-bold text-xs uppercase text-white">
+                       <Plus className="w-4 h-4" /> {stockFilter === 'alcohol' ? 'ADD OR DELIST SPIRIT' : 'ADD OR DELETE ITEM'}
                      </Button>
                   </div>
                </div>
 
                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 m-0">
                  <Card className="lg:col-span-3 bg-zinc-900 border-zinc-800 p-6">
-                   <h2 className="text-xl font-bold mb-6 uppercase tracking-tight">Initial Stock Setup</h2>
+                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                     <h2 className="text-xl font-bold uppercase tracking-tight">Initial Stock Setup</h2>
+                     <div className="flex gap-1 bg-zinc-950 p-1 rounded-xl border border-zinc-800">
+                       <Button 
+                         variant={stockFilter === 'alcohol' ? 'secondary' : 'ghost'} 
+                         size="sm"
+                         onClick={() => setStockFilter('alcohol')}
+                         className={`rounded-lg h-8 text-[9px] uppercase font-bold px-4 ${stockFilter === 'alcohol' ? 'bg-white/10 text-white' : 'text-zinc-500'}`}
+                       >
+                         Alcohol
+                       </Button>
+                       <Button 
+                         variant={stockFilter === 'non-alcohol' ? 'secondary' : 'ghost'} 
+                         size="sm"
+                         onClick={() => setStockFilter('non-alcohol')}
+                         className={`rounded-lg h-8 text-[9px] uppercase font-bold px-4 ${stockFilter === 'non-alcohol' ? 'bg-white/10 text-white' : 'text-zinc-500'}`}
+                       >
+                         Non-Alcoholic
+                       </Button>
+                     </div>
+                   </div>
                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                       {sortedStock.map(s => {
                         const size = getBottleSize(s.ingredientName);
@@ -1618,8 +1766,48 @@ export default function App() {
                                 <span className="text-xs font-medium">{getExcelDisplayName(s.ingredientName)}</span>
                              </div>
                              <div className="flex items-center gap-2">
-                                <Input type="number" step="0.1" value={s.initialMl/size || ''} onChange={e => updateStock(s.ingredientName, (parseFloat(e.target.value)||0)*size)} className="w-20 text-right font-mono text-xs bg-zinc-900 border-zinc-800 h-8" />
-                                <span className="text-[10px] text-zinc-600">BTL</span>
+                                {(() => {
+                                  const nameStr = typeof s.ingredientName === 'string' ? s.ingredientName : '';
+                                  const currentUnit = stockInputUnits[nameStr] || (nameStr.toLowerCase().includes('grams') || nameStr.toLowerCase().includes('(g)') ? 'g' : 'btl');
+                                  let displayVal = 0;
+                                  let multiplier = size;
+                                  
+                                  if (currentUnit === 'l' || currentUnit === 'kg') multiplier = 1000;
+                                  else if (currentUnit === 'g' || currentUnit === 'unit') multiplier = 1;
+                                  else multiplier = size; // 'btl'
+
+                                  displayVal = s.initialMl / multiplier;
+
+                                  return (
+                                    <>
+                                      <Input 
+                                        type="number" 
+                                        step="0.01" 
+                                        value={displayVal || ''} 
+                                        onChange={e => updateStock(s.ingredientName, (parseFloat(e.target.value)||0)*multiplier)} 
+                                        className="w-20 text-right font-mono text-xs bg-zinc-900 border-zinc-800 h-8" 
+                                      />
+                                      {stockFilter === 'alcohol' ? (
+                                        <span className="text-[10px] text-zinc-600 uppercase w-8">Btl</span>
+                                      ) : (
+                                        <select 
+                                          className="bg-transparent text-[10px] text-zinc-500 uppercase font-bold outline-none cursor-pointer hover:text-white transition-colors"
+                                          value={currentUnit}
+                                          onChange={(e) => {
+                                            const newUnit = e.target.value as any;
+                                            setStockInputUnits(prev => ({ ...prev, [s.ingredientName]: newUnit }));
+                                          }}
+                                        >
+                                          <option value="l" className="bg-zinc-950">L</option>
+                                          <option value="kg" className="bg-zinc-950">KG</option>
+                                          <option value="g" className="bg-zinc-950">G</option>
+                                          <option value="unit" className="bg-zinc-950">Unit</option>
+                                          <option value="btl" className="bg-zinc-950">Btl</option>
+                                        </select>
+                                      )}
+                                    </>
+                                  );
+                                })()}
                              </div>
                           </div>
                         )
@@ -1848,16 +2036,16 @@ export default function App() {
 
                  {/* Detailed Ordering List */}
                  <div className="lg:col-span-3 space-y-6">
-                    <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500 ml-2">Suggested Spirits Reorder</h3>
+                    <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500 ml-2">Material Order List</h3>
                     <Card className="bg-zinc-900 border-zinc-800 rounded-[32px] overflow-hidden">
                        <div className="overflow-x-auto">
                           <table className="w-full text-sm">
                              <thead>
                                 <tr className="bg-zinc-800 shadow-sm text-[10px] uppercase text-zinc-500 text-left">
-                                   <th className="p-6 font-bold">Spirit Ingredient</th>
-                                   <th className="p-6 font-bold text-right">4-Day Vol (ML)</th>
-                                   <th className="p-6 font-bold text-right">Avg Daily (ML)</th>
-                                   <th className="p-6 font-bold text-right">Suggested (Btls)</th>
+                                   <th className="p-6 font-bold">Material Ingredient</th>
+                                   <th className="p-6 font-bold text-right">4-Day Total Vol</th>
+                                   <th className="p-6 font-bold text-right">Avg Daily</th>
+                                   <th className="p-6 font-bold text-right">Forecast Action</th>
                                 </tr>
                              </thead>
                              <tbody>
@@ -1865,24 +2053,32 @@ export default function App() {
                                   <tr>
                                     <td colSpan={4} className="p-12 text-center text-zinc-700 uppercase text-[10px]">Insufficient history to generate order</td>
                                   </tr>
-                                ) : beverageOrderAnalysis.sortedDepletion.map((s, idx) => (
-                                  <tr key={idx} className="border-t border-zinc-800/50 hover:bg-white/5 transition-colors group">
-                                     <td className="p-6">
-                                        <p className="font-bold text-white uppercase tracking-tight group-hover:text-rose-400 transition-colors">{getExcelDisplayName(s.name)}</p>
-                                        <p className="text-[10px] text-zinc-600">Unit: {s.bSize}ml</p>
-                                     </td>
-                                     <td className="p-6 text-right font-mono text-zinc-300">{s.totalMl.toFixed(0)}</td>
-                                     <td className="p-6 text-right font-mono text-zinc-500">{s.avgDailyMl.toFixed(1)}</td>
-                                     <td className="p-6 text-right">
-                                        <div className="flex flex-col items-end">
-                                          <span className={`text-lg font-bold font-mono ${s.bottlesNeeded >= 1 ? 'text-emerald-500' : 'text-zinc-500'}`}>
-                                            {s.bottlesNeeded.toFixed(2)}
-                                          </span>
-                                          <span className="text-[9px] uppercase font-bold text-zinc-600">Bottles</span>
-                                        </div>
-                                     </td>
-                                  </tr>
-                                ))}
+                                ) : beverageOrderAnalysis.sortedDepletion.map((s, idx) => {
+                                  const isGrams = s.name.toLowerCase().includes('grams') || s.name.toLowerCase().includes('(g)');
+                                  const unitLabel = isGrams ? 'Units (G)' : 'Units';
+                                  return (
+                                    <tr key={idx} className="border-t border-zinc-800/50 hover:bg-white/5 transition-colors group">
+                                       <td className="p-6">
+                                          <p className="font-bold text-white uppercase tracking-tight group-hover:text-rose-400 transition-colors uppercase">{getExcelDisplayName(s.name)}</p>
+                                          <p className="text-[10px] text-zinc-600 font-mono tracking-tighter">BASE UNIT: {s.bSize}{isGrams ? 'g' : 'ml'}</p>
+                                       </td>
+                                       <td className="p-6 text-right font-mono text-zinc-300">
+                                          {s.totalMl >= 1000 && !isGrams ? `${(s.totalMl/1000).toFixed(2)}L` : `${s.totalMl.toFixed(0)}${isGrams ? 'g' : 'ml'}`}
+                                       </td>
+                                       <td className="p-6 text-right font-mono text-zinc-500">
+                                          {s.avgDailyMl >= 1000 && !isGrams ? `${(s.avgDailyMl/1000).toFixed(2)}L` : `${s.avgDailyMl.toFixed(1)}${isGrams ? 'g' : 'ml'}`}
+                                       </td>
+                                       <td className="p-6 text-right">
+                                          <div className="flex flex-col items-end">
+                                            <span className={`text-lg font-bold font-mono ${s.bottlesNeeded >= 1 ? 'text-emerald-500' : 'text-zinc-500'}`}>
+                                              {s.bottlesNeeded.toFixed(1)}
+                                            </span>
+                                            <span className="text-[9px] uppercase font-bold text-zinc-600">{unitLabel}</span>
+                                          </div>
+                                       </td>
+                                    </tr>
+                                  );
+                                })}
                              </tbody>
                           </table>
                        </div>
@@ -1994,7 +2190,7 @@ export default function App() {
         <DialogContent className="bg-zinc-950 border-zinc-900 text-white max-w-2xl rounded-[32px] p-0 overflow-hidden shadow-2xl">
            {selectedBatchRecipe && activeBatch?.recipeId === selectedBatchRecipe.id ? (
              // Step by Step Mode
-             <div className="flex flex-col h-[85vh]">
+             <div className="flex flex-col h-[85vh] md:h-auto md:max-h-[85vh]">
                 <div className="bg-orange-600 p-6 flex flex-col gap-2">
                    <div className="flex justify-between items-center">
                       <Button variant="ghost" size="icon" onClick={() => setSelectedBatchRecipe(null)} className="text-white hover:bg-orange-500 rounded-full h-8 w-8">
@@ -2201,31 +2397,32 @@ export default function App() {
                  </div>
               </div>
 
-              <DialogFooter className="sticky bottom-0 bg-zinc-950 pt-4 border-t border-zinc-900 flex flex-col gap-2">
-                 <Button 
-                   onClick={() => {
-                     if (selectedBatchRecipe && batchVolumeInput) {
-                       startBatch(selectedBatchRecipe, parseFloat(batchVolumeInput));
-                     }
-                   }}
-                   className="w-full h-16 bg-white text-black hover:bg-zinc-200 font-bold rounded-2xl text-lg uppercase tracking-tight shadow-xl"
-                 >
-                   START MAKING THIS BATCH <ChevronRight className="ml-2 w-5 h-5" />
-                 </Button>
-                 <Button 
-                   variant="ghost"
-                   onClick={() => {
-                     if (selectedBatchRecipe && batchVolumeInput) {
-                       handleCreateBatch(selectedBatchRecipe, parseFloat(batchVolumeInput));
-                       setSelectedBatchRecipe(null);
-                     }
-                   }}
-                   className="w-full h-10 text-zinc-500 hover:text-orange-500 font-bold rounded-xl text-xs uppercase"
-                 >
-                   Confirm Complete (Skip Steps)
-                 </Button>
-              </DialogFooter>
-           </ScrollArea>
+            </ScrollArea>
+
+           <DialogFooter className="bg-zinc-950 p-8 pt-4 border-t border-zinc-900 flex flex-col gap-2">
+              <Button 
+                onClick={() => {
+                  if (selectedBatchRecipe && batchVolumeInput) {
+                    startBatch(selectedBatchRecipe, parseFloat(batchVolumeInput));
+                  }
+                }}
+                className="w-full h-16 bg-white text-black hover:bg-zinc-200 font-bold rounded-2xl text-lg uppercase tracking-tight shadow-xl"
+              >
+                START MAKING THIS BATCH <ChevronRight className="ml-2 w-5 h-5" />
+              </Button>
+              <Button 
+                variant="ghost"
+                onClick={() => {
+                  if (selectedBatchRecipe && batchVolumeInput) {
+                    handleCreateBatch(selectedBatchRecipe, parseFloat(batchVolumeInput));
+                    setSelectedBatchRecipe(null);
+                  }
+                }}
+                className="w-full h-10 text-zinc-500 hover:text-orange-500 font-bold rounded-xl text-xs uppercase"
+              >
+                Confirm Complete (Skip Steps)
+              </Button>
+           </DialogFooter>
          </>
        )}
    </DialogContent>
@@ -2236,6 +2433,7 @@ export default function App() {
           className="bg-zinc-900 border-zinc-800 text-white max-w-sm rounded-[32px] p-8"
           onPointerDownOutside={(e) => e.preventDefault()}
           onEscapeKeyDown={(e) => e.preventDefault()}
+          onInteractOutside={(e) => e.preventDefault()}
         >
            <div className="flex justify-between items-center mb-6">
               <Button 
@@ -2439,8 +2637,8 @@ export default function App() {
                     className="w-full bg-zinc-900 border-zinc-800 text-white rounded-xl h-12 px-4 focus:ring-amber-500"
                   >
                     <option value="">Select Spirit...</option>
-                    {allIngredients.sort().map(name => (
-                      <option key={name} value={name}>{name}</option>
+                    {[...allIngredients].sort((a,b) => a.internalName.localeCompare(b.internalName)).map(i => (
+                      <option key={i.internalName} value={i.internalName}>{getExcelDisplayName(i.internalName)}</option>
                     ))}
                   </select>
                 </div>
@@ -2480,15 +2678,15 @@ export default function App() {
           <div className="flex border-b border-zinc-900">
             <button 
               onClick={() => setSpiritMode('add')}
-              className={`flex-1 py-6 font-bold uppercase tracking-widest text-sm transition-all ${spiritMode === 'add' ? 'bg-emerald-600 text-white' : 'hover:bg-zinc-900 text-zinc-500'}`}
+              className={`flex-1 py-6 font-bold uppercase tracking-widest text-xs md:text-sm transition-all ${spiritMode === 'add' ? 'bg-emerald-600 text-white' : 'hover:bg-zinc-900 text-zinc-500'}`}
             >
-              Add Spirit
+              {stockFilter === 'alcohol' ? 'Add Spirit' : 'Add Item'}
             </button>
             <button 
               onClick={() => setSpiritMode('remove')}
-              className={`flex-1 py-6 font-bold uppercase tracking-widest text-sm transition-all ${spiritMode === 'remove' ? 'bg-red-600 text-white' : 'hover:bg-zinc-900 text-zinc-500'}`}
+              className={`flex-1 py-6 font-bold uppercase tracking-widest text-xs md:text-sm transition-all ${spiritMode === 'remove' ? 'bg-red-600 text-white' : 'hover:bg-zinc-900 text-zinc-500'}`}
             >
-              Delist Spirit
+              {stockFilter === 'alcohol' ? 'Delist Spirit' : 'Delete Item'}
             </button>
           </div>
 
@@ -2496,21 +2694,50 @@ export default function App() {
             {spiritMode === 'add' ? (
               <div className="space-y-6">
                  <div className="space-y-2">
-                   <label className="text-[10px] uppercase text-zinc-500 font-bold tracking-widest">{editingSpirit ? 'Edit Name' : 'Bottle Name'}</label>
-                   <Input value={newSpiritName} onChange={e => setNewSpiritName(e.target.value)} className="bg-zinc-900 border-zinc-800 h-12 rounded-xl" placeholder="e.g. Absolut Vodka" />
+                   <label className="text-[10px] uppercase text-zinc-500 font-bold tracking-widest">
+                     {stockFilter === 'alcohol' ? (editingSpirit ? 'Edit Name' : 'Bottle Name') : (editingSpirit ? 'Edit Item' : 'Item Name')}
+                   </label>
+                   <Input value={newSpiritName} onChange={e => setNewSpiritName(e.target.value)} className="bg-zinc-900 border-zinc-800 h-12 rounded-xl" placeholder={stockFilter === 'alcohol' ? "e.g. Absolut Vodka" : "e.g. Fresh Orange Juice"} />
                  </div>
                  <div className="grid grid-cols-2 gap-4">
                    <div className="space-y-2">
-                     <label className="text-[10px] uppercase text-zinc-500 font-bold tracking-widest">Bottle Size (ml)</label>
-                     <Input type="number" value={newSpiritBtlSize} onChange={e => setNewSpiritBtlSize(e.target.value)} className="bg-zinc-900 border-zinc-800 h-12 rounded-xl" />
+                     <label className="text-[10px] uppercase text-zinc-500 font-bold tracking-widest">
+                       {stockFilter === 'alcohol' ? 'Bottle Size (ml)' : 'Base Unit Size'}
+                     </label>
+                     <div className="relative">
+                       <Input type="number" value={newSpiritBtlSize} onChange={e => setNewSpiritBtlSize(e.target.value)} className="bg-zinc-900 border-zinc-800 h-12 rounded-xl" />
+                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-zinc-600 font-bold uppercase">
+                         {stockFilter === 'alcohol' ? 'ML' : (newSpiritName ? (stockInputUnits[newSpiritName] || 'ml') : 'ml')}
+                       </span>
+                     </div>
                    </div>
                    <div className="space-y-2">
-                     <label className="text-[10px] uppercase text-zinc-500 font-bold tracking-widest">Serving Portion (ml)</label>
-                     <select value={newSpiritGlassSize} onChange={e => setNewSpiritGlassSize(e.target.value)} className="w-full bg-zinc-900 border-zinc-800 text-white rounded-xl h-12 px-4">
-                       <option value="45">45ml</option>
-                       <option value="30">30ml</option>
-                       <option value="0">Bottle Only</option>
-                     </select>
+                     <label className="text-[10px] uppercase text-zinc-500 font-bold tracking-widest">
+                       {stockFilter === 'alcohol' ? 'Serving Portion (ml)' : 'Preferred Unit'}
+                     </label>
+                     {stockFilter === 'alcohol' ? (
+                       <select value={newSpiritGlassSize} onChange={e => setNewSpiritGlassSize(e.target.value)} className="w-full bg-zinc-900 border-zinc-800 text-white rounded-xl h-12 px-4 outline-none">
+                         <option value="45">45ml</option>
+                         <option value="30">30ml</option>
+                         <option value="0">Bottle Only</option>
+                       </select>
+                     ) : (
+                       <select 
+                         className="w-full bg-zinc-900 border-zinc-800 text-white rounded-xl h-12 px-4 outline-none"
+                         value={stockInputUnits[newSpiritName] || 'ml'}
+                         onChange={(e) => {
+                           const unit = e.target.value;
+                           setStockInputUnits(prev => ({ ...prev, [newSpiritName]: unit }));
+                         }}
+                       >
+                         <option value="l">L</option>
+                         <option value="kg">KG</option>
+                         <option value="g">G</option>
+                         <option value="unit">Unit</option>
+                         <option value="ml">ML</option>
+                         <option value="btl">Btl</option>
+                       </select>
+                     )}
                    </div>
                  </div>
                  <div className="space-y-2">
@@ -2518,7 +2745,7 @@ export default function App() {
                    <Input type="number" value={newSpiritPosition} onChange={e => setNewSpiritPosition(e.target.value)} className="bg-zinc-900 border-zinc-800 h-12 rounded-xl" placeholder="e.g. 5" />
                  </div>
                  <Button onClick={handleSaveSpirit} className={`w-full h-14 ${editingSpirit ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'} text-white font-bold rounded-2xl`}>
-                   {editingSpirit ? 'UPDATE SPIRIT CONFIG' : 'ADD TO STOCK'}
+                   {editingSpirit ? (stockFilter === 'alcohol' ? 'UPDATE SPIRIT CONFIG' : 'UPDATE ITEM CONFIG') : (stockFilter === 'alcohol' ? 'ADD TO STOCK' : 'ADD ITEM')}
                  </Button>
               </div>
             ) : (
@@ -2526,18 +2753,18 @@ export default function App() {
                 <label className="text-[10px] uppercase text-zinc-500 font-bold tracking-widest">Select items to remove</label>
                 <ScrollArea className="h-64 pr-4 border border-zinc-900 rounded-xl p-4">
                   <div className="space-y-2">
-                    {allIngredients.sort().map(name => (
-                      <div key={name} className="flex items-center gap-3 p-3 bg-zinc-900 rounded-lg hover:bg-zinc-800 transition-colors">
+                    {[...allIngredients].sort((a,b) => a.internalName.localeCompare(b.internalName)).map(i => (
+                      <div key={i.internalName} className="flex items-center gap-3 p-3 bg-zinc-900 rounded-lg hover:bg-zinc-800 transition-colors">
                         <input 
                           type="checkbox" 
-                          checked={spiritsToRemove.includes(name)}
+                          checked={spiritsToRemove.includes(i.internalName)}
                           onChange={e => {
-                            if(e.target.checked) setSpiritsToRemove(prev => [...prev, name]);
-                            else setSpiritsToRemove(prev => prev.filter(n => n !== name));
+                            if(e.target.checked) setSpiritsToRemove(prev => [...prev, i.internalName]);
+                            else setSpiritsToRemove(prev => prev.filter(n => n !== i.internalName));
                           }}
                           className="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-red-600 focus:ring-red-500"
                         />
-                        <span className="text-sm">{name}</span>
+                        <span className="text-sm">{getExcelDisplayName(i.internalName)}</span>
                       </div>
                     ))}
                   </div>
