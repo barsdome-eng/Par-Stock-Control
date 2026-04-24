@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Search, Calculator, Trash2, ChevronRight, ChevronDown, GlassWater, Info, Package, AlertTriangle, CheckCircle2, User as UserIcon, Bot, Zap, Sparkles, RefreshCcw, Plus, LogOut, LogIn, Cloud, CloudOff, AlarmClock, ArrowLeft, Timer as TimerIcon, Settings } from 'lucide-react';
+import { Search, Calculator, Trash2, ChevronRight, ChevronDown, GlassWater, Info, Package, AlertTriangle, CheckCircle2, User as UserIcon, Bot, Zap, Sparkles, RefreshCcw, Plus, LogOut, LogIn, Cloud, CloudOff, AlarmClock, ArrowLeft, Timer as TimerIcon, Settings, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, auth, signIn, logOut, handleFirestoreError } from './lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
@@ -529,6 +529,11 @@ export default function App() {
   const [newSpiritUnit, setNewSpiritUnit] = useState('ml');
   const [newSpiritCategory, setNewSpiritCategory] = useState('');
   const [spiritsToRemove, setSpiritsToRemove] = useState<string[]>([]);
+  const [deletionConflict, setDeletionConflict] = useState<{
+    item: string;
+    recipes: { id: string; name: string; ingredientName: string }[];
+  } | null>(null);
+  const [replacementTarget, setReplacementTarget] = useState<string>('');
   const [recipeName, setRecipeName] = useState('');
   const [recipeIngredients, setRecipeIngredients] = useState<Ingredient[]>([]);
   const [newIngName, setNewIngName] = useState('');
@@ -1677,6 +1682,29 @@ export default function App() {
 
   const handleRemoveSpirits = async () => {
     if(spiritsToRemove.length === 0) return;
+
+    // Check for recipe links
+    const conflicts: { item: string; recipes: { id: string; name: string; ingredientName: string }[] }[] = [];
+    
+    spiritsToRemove.forEach(s => {
+      const linkedRecipes = batchRecipes.filter(r => 
+        Object.values(r.ingredientMapping || {}).includes(s)
+      ).map(r => ({
+        id: r.id,
+        name: r.name,
+        ingredientName: Object.keys(r.ingredientMapping || {}).find(k => r.ingredientMapping?.[k] === s) || ''
+      }));
+
+      if (linkedRecipes.length > 0) {
+        conflicts.push({ item: s, recipes: linkedRecipes });
+      }
+    });
+
+    if (conflicts.length > 0) {
+      setDeletionConflict(conflicts[0]);
+      return;
+    }
+
     const nextGlass45 = spiritsByGlass45.filter(s => !spiritsToRemove.includes(s));
     const nextGlass30 = spiritsByGlass30.filter(s => !spiritsToRemove.includes(s));
     const nextBottle = spiritsByBottle.filter(s => !spiritsToRemove.includes(s.name));
@@ -1699,8 +1727,7 @@ export default function App() {
         
         // Remove stock associated with these items
         spiritsToRemove.forEach(s => {
-          const stockId = spiritMapping[s] || s;
-          batch.delete(doc(db, 'stock', stockId));
+          batch.delete(doc(db, 'stock', s));
         });
         
         // Update settings
@@ -1729,16 +1756,93 @@ export default function App() {
     setExcelOrder(nextOrder);
     setManualNonAlcoholic(nextManualNonAlch);
     setStockInputUnits(nextUnits);
-    setStock(prev => prev.filter(s => {
-      const isRemoved = spiritsToRemove.some(internalName => {
-        const displayName = spiritMapping[internalName] || internalName;
-        return s.ingredientName === displayName;
-      });
-      return !isRemoved;
-    }));
+    setStock(prev => prev.filter(s => !spiritsToRemove.includes(s.ingredientName)));
     setCocktails(prev => prev.filter(c => !spiritsToRemove.includes(c.name)));
     setSpiritsToRemove([]);
     setIsSpiritDialogOpen(false);
+  };
+
+  const handleResolveConflict = async (resolveMode: 'delete' | 'replace') => {
+    if (!deletionConflict || !user) return;
+
+    try {
+      setIsSyncing(true);
+      const batch = writeBatch(db);
+
+      for (const recipeRef of deletionConflict.recipes) {
+        const recipe = batchRecipes.find(r => r.id === recipeRef.id);
+        if (recipe && recipe.ingredientMapping) {
+          const newMapping = { ...recipe.ingredientMapping };
+          if (resolveMode === 'delete') {
+            delete newMapping[recipeRef.ingredientName];
+          } else if (resolveMode === 'replace' && replacementTarget) {
+            newMapping[recipeRef.ingredientName] = replacementTarget;
+          }
+          
+          batch.update(doc(db, 'batchRecipes', recipeRef.id), { ingredientMapping: newMapping });
+          
+          // Update local state
+          setBatchRecipes(prev => prev.map(r => r.id === recipeRef.id ? { ...r, ingredientMapping: newMapping } : r));
+        }
+      }
+
+      await batch.commit();
+      
+      // Now actually remove the items
+      const nextToRemove = spiritsToRemove.filter(s => s !== deletionConflict.item);
+      setSpiritsToRemove(nextToRemove);
+      setDeletionConflict(null);
+      setReplacementTarget('');
+      
+      // If no more conflicts, complete the removal
+      if (nextToRemove.length === 0) {
+        // We already processed the conflict for this one, so we can remove it from stock now
+        const finalBatch = writeBatch(db);
+        finalBatch.delete(doc(db, 'stock', deletionConflict.item));
+        
+        // Also update settings to remove it from lists
+        const nextGlass45 = spiritsByGlass45.filter(s => s !== deletionConflict.item);
+        const nextGlass30 = spiritsByGlass30.filter(s => s !== deletionConflict.item);
+        const nextBottle = spiritsByBottle.filter(s => s !== deletionConflict.item);
+        const nextManualNonAlch = manualNonAlcoholic.filter(n => n !== deletionConflict.item);
+        const nextMapping = { ...spiritMapping };
+        delete nextMapping[deletionConflict.item];
+        const nextUnits = { ...stockInputUnits };
+        delete nextUnits[deletionConflict.item];
+        const nextOrder = excelOrder.filter(o => !o.startsWith(deletionConflict.item));
+
+        finalBatch.set(doc(db, 'settings', user.uid), {
+          spiritsByGlass45: nextGlass45,
+          spiritsByGlass30: nextGlass30,
+          spiritsByBottle: nextBottle,
+          spiritMapping: nextMapping,
+          excelOrder: nextOrder,
+          manualNonAlcoholic: nextManualNonAlch,
+          stockInputUnits: nextUnits
+        }, { merge: true });
+
+        await finalBatch.commit();
+
+        setSpiritsByGlass45(nextGlass45);
+        setSpiritsByGlass30(nextGlass30);
+        setSpiritsByBottle(nextBottle);
+        setSpiritMapping(nextMapping);
+        setExcelOrder(nextOrder);
+        setManualNonAlcoholic(nextManualNonAlch);
+        setStockInputUnits(nextUnits);
+        setStock(prev => prev.filter(s => s.ingredientName !== deletionConflict.item));
+        setIsSpiritDialogOpen(false);
+      } else {
+        // If there are more items to remove, restart the removal process for the remaining ones
+        // This will trigger the next conflict if any
+        handleRemoveSpirits();
+      }
+
+    } catch (err) {
+      handleFirestoreError(err, 'write', 'resolve-deletion-conflict');
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   const handleRemoveRecipe = async (id: string) => {
@@ -3045,7 +3149,67 @@ export default function App() {
           </div>
 
           <div className="p-8 space-y-6">
-            {spiritMode === 'add' ? (
+            {deletionConflict ? (
+              <div className="space-y-6">
+                <div className="p-4 bg-red-900/20 border border-red-500/50 rounded-2xl flex items-start gap-4">
+                  <AlertCircle className="w-6 h-6 text-red-500 shrink-0 mt-1" />
+                  <div className="space-y-1">
+                    <h3 className="font-bold text-red-500 uppercase text-sm tracking-widest">Linked Item Conflict</h3>
+                    <p className="text-sm text-zinc-300">
+                      <span className="text-white font-bold">{deletionConflict.item}</span> is linked to the following batch recipes:
+                    </p>
+                    <ul className="list-disc list-inside text-xs text-zinc-400 mt-2 space-y-1">
+                      {deletionConflict.recipes.map((r, idx) => (
+                        <li key={idx}>{r.name} (as {r.ingredientName})</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <p className="text-sm text-zinc-500 italic">Would you like to remove it from these recipes or replace it with another item from stock?</p>
+                  
+                  <div className="space-y-2">
+                    <label className="text-[10px] uppercase text-zinc-500 font-bold tracking-widest">Replace with...</label>
+                    <select 
+                      className="w-full bg-zinc-900 border border-zinc-800 text-white rounded-xl h-12 px-4"
+                      value={replacementTarget}
+                      onChange={e => setReplacementTarget(e.target.value)}
+                    >
+                      <option value="">Select Replacement...</option>
+                      {stock.filter(s => s.ingredientName !== deletionConflict.item).map(s => (
+                        <option key={s.ingredientName} value={s.ingredientName}>{s.ingredientName}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <Button 
+                      variant="outline" 
+                      onClick={() => handleResolveConflict('delete')}
+                      className="h-14 rounded-2xl border-zinc-800 text-zinc-500 hover:text-white"
+                    >
+                      DELETE FROM RECIPES
+                    </Button>
+                    <Button 
+                      onClick={() => handleResolveConflict('replace')}
+                      disabled={!replacementTarget}
+                      className="h-14 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold disabled:opacity-50"
+                    >
+                      REPLACE & CONTINUE
+                    </Button>
+                  </div>
+                  
+                  <Button 
+                    variant="ghost" 
+                    onClick={() => { setDeletionConflict(null); setSpiritsToRemove([]); }}
+                    className="w-full text-zinc-500 hover:text-white"
+                  >
+                    CANCEL ALL REMOVALS
+                  </Button>
+                </div>
+              </div>
+            ) : spiritMode === 'add' ? (
               <div className="space-y-6">
                  <div className="space-y-2">
                    <label className="text-[10px] uppercase text-zinc-500 font-bold tracking-widest">
@@ -3061,7 +3225,7 @@ export default function App() {
                      <div className="relative">
                        <Input type="number" value={newSpiritBtlSize} onChange={e => setNewSpiritBtlSize(e.target.value)} className="bg-zinc-900 border-zinc-800 h-12 rounded-xl" />
                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-zinc-600 font-bold uppercase">
-                         {stockFilter === 'alcohol' ? 'ML' : (newSpiritName ? (stockInputUnits[newSpiritName] || 'ml') : 'ml')}
+                         {stockFilter === 'alcohol' ? 'ML' : newSpiritUnit}
                        </span>
                      </div>
                    </div>
@@ -3078,10 +3242,9 @@ export default function App() {
                      ) : (
                        <select 
                          className="w-full bg-zinc-900 border-zinc-800 text-white rounded-xl h-12 px-4 outline-none"
-                         value={stockInputUnits[newSpiritName] || 'ml'}
+                         value={newSpiritUnit}
                          onChange={(e) => {
-                           const unit = e.target.value;
-                           setStockInputUnits(prev => ({ ...prev, [newSpiritName]: unit }));
+                           setNewSpiritUnit(e.target.value);
                          }}
                        >
                          <option value="l">L</option>
