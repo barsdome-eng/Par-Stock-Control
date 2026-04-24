@@ -7,11 +7,17 @@ import './index.css';
 if (typeof window !== 'undefined') {
   const isResizeObserverError = (msg: string | any) => {
     if (!msg) return false;
-    const message = typeof msg === 'string' ? msg : (msg.message || String(msg));
-    return (
-      message.includes('ResizeObserver') ||
-      message.includes('loop limit exceeded')
-    );
+    const message = String(typeof msg === 'string' ? msg : (msg.message || msg));
+    
+    const isRO = message.includes('ResizeObserver') || 
+                 message.includes('loop limit exceeded') || 
+                 message.includes('undelivered notifications');
+                 
+    if (isRO) {
+      console.debug('Suppressed expected ResizeObserver error:', message);
+    }
+    
+    return isRO;
   };
 
   // Handle standard errors

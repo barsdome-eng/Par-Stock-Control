@@ -67,8 +67,7 @@ export const cocktails: Cocktail[] = [
     name: 'Margarita',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Patron Silver Tequila 750 ml', ml: 45, isAlcohol: true },
-
+      { name: 'Patron Silver', ml: 45, isAlcohol: true },
       { name: 'Cointreau', ml: 20, isAlcohol: true },
     ],
   },
@@ -87,8 +86,8 @@ export const cocktails: Cocktail[] = [
     name: 'Espresso Martini',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Grey Goose Original 750 ml', ml: 45, isAlcohol: true },
-      { name: 'Strega Grancaffe 700 ml', ml: 20, isAlcohol: true },
+      { name: 'Grey Goose', ml: 45, isAlcohol: true },
+      { name: 'Strega Coffee Liqueur', ml: 20, isAlcohol: true },
     ],
   },
   {
@@ -96,7 +95,15 @@ export const cocktails: Cocktail[] = [
     name: 'Moscow Mule',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Grey Goose Original 750 ml', ml: 60, isAlcohol: true },
+      { name: 'Grey Goose', ml: 60, isAlcohol: true },
+    ],
+  },
+  {
+    id: 'whisky-sour',
+    name: 'Whisky Sour',
+    category: 'Cocktail',
+    ingredients: [
+      { name: 'Bulleit Bourbon', ml: 60, isAlcohol: true },
     ],
   },
   {
@@ -104,17 +111,16 @@ export const cocktails: Cocktail[] = [
     name: 'Sukhumvit After Dark',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Grey Goose Original 750 ml', ml: 44.9, isAlcohol: true },
-      { name: 'Lychee Liqueur Kwai Feh 700 ml', ml: 10.0, isAlcohol: true },
-      { name: 'Masottina Calmaggiore Prosecco 750 ml', ml: 60, isAlcohol: true },
-      { name: 'Dried Butterfly Pea Flowers (grams)', ml: 0.65, isAlcohol: false },
-      { name: 'Saffron (grams)', ml: 0.0016, isAlcohol: false },
-      { name: 'Simple Syrup (1L)', ml: 2.5, isAlcohol: false },
-      { name: 'Agave Syrup (1L)', ml: 2.5, isAlcohol: false },
-      { name: 'Citric Acid (grams)', ml: 0.2, isAlcohol: false },
-      { name: 'Malic Acid (grams)', ml: 0.1, isAlcohol: false },
-      { name: 'Salt (grams)', ml: 0.015, isAlcohol: false },
-      { name: 'Water', ml: 4.835, isAlcohol: false }
+      { name: 'Grey goose Vodka', ml: 44.9, isAlcohol: true },
+      { name: 'Kwai feh Lychee liqueur', ml: 10, isAlcohol: true },
+      { name: 'Citric acid', ml: 0.2, isAlcohol: false },
+      { name: 'Malic acid', ml: 0.1, isAlcohol: false },
+      { name: 'Water', ml: 4.83, isAlcohol: false },
+      { name: 'Simple syrup', ml: 2.5, isAlcohol: false },
+      { name: 'Agave syrup', ml: 2.5, isAlcohol: false },
+      { name: 'Salt', ml: 0.015, isAlcohol: false },
+      { name: 'Butterfly pea', ml: 0.65, isAlcohol: false },
+      { name: 'Saffron', ml: 0.0016, isAlcohol: false },
     ],
   },
   {
@@ -122,7 +128,7 @@ export const cocktails: Cocktail[] = [
     name: 'Old Fashioned',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Bulleit Bourbon Whisky 700 ml', ml: 60, isAlcohol: true },
+      { name: 'Bulleit Bourbon', ml: 60, isAlcohol: true },
     ],
   },
   {
@@ -130,9 +136,9 @@ export const cocktails: Cocktail[] = [
     name: 'Pornstar Martini',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Grey Goose Original 750 ml', ml: 45, isAlcohol: true },
-      { name: 'Galliano Vanilla Liqueur 700 ml', ml: 15, isAlcohol: true },
-      { name: 'Masottina Calmaggiore Prosecco 750 ml', ml: 60, isAlcohol: true },
+      { name: 'Grey Goose', ml: 45, isAlcohol: true },
+      { name: 'Galliano Vanilla Liqueur', ml: 15, isAlcohol: true },
+      { name: 'Masottina Prosecco', ml: 60, isAlcohol: true },
     ],
   },
   {
@@ -140,11 +146,11 @@ export const cocktails: Cocktail[] = [
     name: 'Long Island',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Bacardi Carta Blanca 750 ml', ml: 15, isAlcohol: true },
-      { name: 'Cointreau 700 ml', ml: 15, isAlcohol: true },
-      { name: 'Patron Silver Tequila 750 ml', ml: 15, isAlcohol: true },
-      { name: 'Grey Goose Original 750 ml', ml: 15, isAlcohol: true },
-      { name: 'Bombay Sapphire Gin 750 ml', ml: 15, isAlcohol: true },
+      { name: 'Bacardi White', ml: 15, isAlcohol: true },
+      { name: 'Cointreau', ml: 15, isAlcohol: true },
+      { name: 'Patron Silver', ml: 15, isAlcohol: true },
+      { name: 'Grey Goose', ml: 15, isAlcohol: true },
+      { name: 'Bombay Sapphire', ml: 15, isAlcohol: true },
     ],
   },
   {
@@ -152,8 +158,8 @@ export const cocktails: Cocktail[] = [
     name: 'Hugo Spritz',
     category: 'Cocktail',
     ingredients: [
-      { name: 'St.German 700 ml', ml: 45, isAlcohol: true },
-      { name: 'Masottina Calmaggiore Prosecco 750 ml', ml: 90, isAlcohol: true },
+      { name: 'St. Germain', ml: 45, isAlcohol: true },
+      { name: 'Masottina Prosecco', ml: 90, isAlcohol: true },
     ],
   },
   {
@@ -161,8 +167,8 @@ export const cocktails: Cocktail[] = [
     name: 'Campari Spritz',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Campari 750 ml', ml: 45, isAlcohol: true },
-      { name: 'Masottina Calmaggiore Prosecco 750 ml', ml: 90, isAlcohol: true },
+      { name: 'Campari', ml: 45, isAlcohol: true },
+      { name: 'Masottina Prosecco', ml: 90, isAlcohol: true },
     ],
   },
   {
@@ -170,8 +176,8 @@ export const cocktails: Cocktail[] = [
     name: 'Sex on the Beach',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Grey Goose Original 750 ml', ml: 45, isAlcohol: true },
-      { name: 'Peachtree (The Original) 700 ml', ml: 15, isAlcohol: true },
+      { name: 'Grey Goose', ml: 45, isAlcohol: true },
+      { name: 'Peachtree Peach Liqueur', ml: 15, isAlcohol: true },
     ],
   },
   {
@@ -179,18 +185,18 @@ export const cocktails: Cocktail[] = [
     name: 'Khaosan Regret',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Bombay Sapphire Gin 750 ml', ml: 18, isAlcohol: true },
-      { name: 'Demonio De Los Andes Pisco 700 ml', ml: 24, isAlcohol: true },
-      { name: 'Aperol 700 ml', ml: 12, isAlcohol: true },
-      { name: 'White Wine (Sauvignon Blanc) 750 ml', ml: 15.6, isAlcohol: true },
-      { name: 'Monin Strawberry Syrup 700 ml', ml: 7.8, isAlcohol: false },
-      { name: 'Monin Passionfruit Syrup 700 ml', ml: 2.6, isAlcohol: false },
-      { name: 'Citric Acid (grams)', ml: 0.34, isAlcohol: false },
-      { name: 'Malic Acid (grams)', ml: 0.17, isAlcohol: false },
-      { name: 'Water', ml: 9.44, isAlcohol: false },
-      { name: 'Salt (grams)', ml: 0.1, isAlcohol: false },
+      { name: 'Bombay Sapphire', ml: 18, isAlcohol: true },
+      { name: 'Demonio Los Andes Pisco', ml: 24, isAlcohol: true },
+      { name: 'Aperol', ml: 12, isAlcohol: true },
+      { name: 'White Wine', ml: 15.6, isAlcohol: true },
+      { name: 'Strawberry Monin', ml: 7.8, isAlcohol: false },
+      { name: 'Passionfruit Monin', ml: 2.6, isAlcohol: false },
+      { name: 'Citric Acid', ml: 0.34, isAlcohol: false },
+      { name: 'Malic Acid', ml: 0.17, isAlcohol: false },
+      { name: 'Water', ml: 8.5, isAlcohol: false },
+      { name: 'Salt', ml: 0.1, isAlcohol: false },
       { name: 'Coconut Essence', ml: 0.12, isAlcohol: false },
-      { name: 'Orange Blossom Water', ml: 0.03, isAlcohol: false }
+      { name: 'Orange Blossom Water', ml: 0.03, isAlcohol: false },
     ],
   },
   {
@@ -198,17 +204,16 @@ export const cocktails: Cocktail[] = [
     name: 'Jodd Fair Gluttony',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Hoxton Tropical Gin 700 ml', ml: 20, isAlcohol: true },
-      { name: 'Patron Reposado Tequila 750 ml', ml: 30, isAlcohol: true },
-      { name: 'Montelobos Mezcal Tequila 700 ml', ml: 6, isAlcohol: true },
-      { name: 'Tio Pepe Sherry 750 ml', ml: 4, isAlcohol: true },
-      { name: 'Emishiki Sensation Sake 1.5 L', ml: 1, isAlcohol: true },
-      { name: 'Monin Pineapple Syrup 700 ml', ml: 9, isAlcohol: false },
-      { name: 'White soy sauce', ml: 1, isAlcohol: false },
+      { name: 'Hoxton Gin', ml: 20, isAlcohol: true },
+      { name: 'Patron Reposado', ml: 30, isAlcohol: true },
+      { name: 'La Luna Mezcal', ml: 6, isAlcohol: true },
+      { name: 'Fino Sherry (Tio Pepe)', ml: 4, isAlcohol: true },
+      { name: 'Sake (Emishiki)', ml: 1, isAlcohol: true },
+      { name: 'Pineapple Monin', ml: 9, isAlcohol: false },
+      { name: 'White Soy Sauce', ml: 1, isAlcohol: false },
       { name: 'Water', ml: 4.6, isAlcohol: false },
-      { name: 'Citric Acid (grams)', ml: 0.26, isAlcohol: false },
-      { name: 'Malic Acid (grams)', ml: 0.13, isAlcohol: false },
-      { name: 'Wasabi oil', ml: 1, isAlcohol: false },
+      { name: 'Citric Acid', ml: 0.26, isAlcohol: false },
+      { name: 'Malic Acid', ml: 0.13, isAlcohol: false },
     ],
   },
   {
@@ -216,15 +221,13 @@ export const cocktails: Cocktail[] = [
     name: 'Sunset at Chao Phraya',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Earl Grey Tea (grams)', ml: 0.043, isAlcohol: false },
-      { name: 'Water', ml: 36.8, isAlcohol: false },
-      { name: 'Peachtree (The Original) 700 ml', ml: 11.4, isAlcohol: true },
-      { name: 'St.German 700 ml', ml: 6.1, isAlcohol: true },
-      { name: 'Salt (grams)', ml: 0.08, isAlcohol: false },
-      { name: 'Bergamotto Fantastico 700 ml', ml: 20, isAlcohol: true },
-      { name: 'Citric Acid (grams)', ml: 0.4, isAlcohol: false },
-      { name: 'Malic Acid (grams)', ml: 0.2, isAlcohol: false },
-      { name: 'Grapefruit Soda 200 ml', ml: 60, isAlcohol: false }
+      { name: 'Earl Grey tea', ml: 36.8, isAlcohol: false },
+      { name: 'Peachtree peach liqueur', ml: 11.4, isAlcohol: true },
+      { name: 'St-Germain', ml: 6.1, isAlcohol: true },
+      { name: 'Salt', ml: 0.08, isAlcohol: false },
+      { name: 'Bergamotto Fantastico', ml: 20, isAlcohol: true },
+      { name: 'Citric acid', ml: 0.4, isAlcohol: false },
+      { name: 'Malic acid', ml: 0.2, isAlcohol: false },
     ],
   },
   {
@@ -232,18 +235,17 @@ export const cocktails: Cocktail[] = [
     name: 'BTS Highball',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Patron Reposado Tequila 750 ml', ml: 34.8, isAlcohol: true },
-      { name: 'Martini Bianco 1 L', ml: 7.45, isAlcohol: true },
-      { name: 'Blue Curacao 700 ml', ml: 4.97, isAlcohol: true },
-      { name: 'Monin Rose Syrup 700 ml', ml: 9.94, isAlcohol: false },
-      { name: 'Citric Acid (grams)', ml: 0.48, isAlcohol: false },
-      { name: 'Malic Acid (grams)', ml: 0.24, isAlcohol: false },
+      { name: 'Patron Reposado', ml: 34.8, isAlcohol: true },
+      { name: 'Martini Bianco', ml: 7.45, isAlcohol: true },
+      { name: 'Blue Curaçao', ml: 4.97, isAlcohol: true },
+      { name: 'Monin Rose', ml: 9.94, isAlcohol: false },
+      { name: 'Citric acid', ml: 0.48, isAlcohol: false },
+      { name: 'Malic acid', ml: 0.24, isAlcohol: false },
       { name: 'Water', ml: 12.09, isAlcohol: false },
-      { name: 'Salt (grams)', ml: 0.10, isAlcohol: false },
-      { name: 'Hops (grams)', ml: 0.50, isAlcohol: false },
-      { name: 'Grey Goose Original 750 ml', ml: 9.44, isAlcohol: true },
-      { name: 'Rose Water', ml: 0.03, isAlcohol: false },
-      { name: 'Silpin Rose Spray', ml: 1, isAlcohol: false }
+      { name: 'Salt', ml: 0.1, isAlcohol: false },
+      { name: 'Hops', ml: 0.5, isAlcohol: false },
+      { name: 'Grey Goose Vodka', ml: 9.44, isAlcohol: true },
+      { name: 'Rose water', ml: 0.1, isAlcohol: false },
     ],
   },
   {
@@ -251,12 +253,12 @@ export const cocktails: Cocktail[] = [
     name: 'Hotel Lobby Drams',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Monin Butterscotch Syrup 700 ml', ml: 5.2, isAlcohol: false },
-      { name: 'Fernet Branca 1 L', ml: 7.8, isAlcohol: true },
-      { name: 'Lustau Sherry Palo Cortado Peninsula 375 ml', ml: 10.3, isAlcohol: true },
-      { name: 'Campari Cask Tales 1000 ml', ml: 5.2, isAlcohol: true },
-      { name: 'J/W Gold Reserve 750 ml', ml: 41.4, isAlcohol: true },
-      { name: 'Talisker whisky 10 year 700 ml', ml: 5.2, isAlcohol: true },
+      { name: 'Johnnie Walker Gold', ml: 41.4, isAlcohol: true },
+      { name: 'Fernet Branca', ml: 7.8, isAlcohol: true },
+      { name: 'Palo Cortado Sherry', ml: 10.3, isAlcohol: true },
+      { name: 'Campari Cask Tales', ml: 5.2, isAlcohol: true },
+      { name: 'Talisker 10', ml: 5.2, isAlcohol: true },
+      { name: 'Butterscotch Monin', ml: 5.2, isAlcohol: false },
     ],
   },
   {
@@ -264,8 +266,8 @@ export const cocktails: Cocktail[] = [
     name: 'Vodka Martini',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Grey Goose Original 750 ml', ml: 50, isAlcohol: true },
-      { name: 'Cocchi Di Torino Extra Dry Vermouth 500 ml', ml: 10, isAlcohol: true },
+      { name: 'Grey Goose', ml: 50, isAlcohol: true },
+      { name: 'Cocchi Extra Dry', ml: 10, isAlcohol: true },
     ],
   },
   {
@@ -273,7 +275,7 @@ export const cocktails: Cocktail[] = [
     name: 'Pina Colada',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Bacardi Carta Blanca 750 ml', ml: 60, isAlcohol: true },
+      { name: 'Bacardi White', ml: 60, isAlcohol: true },
     ],
   },
   {
@@ -281,7 +283,7 @@ export const cocktails: Cocktail[] = [
     name: 'Mojito',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Bacardi Carta Blanca 750 ml', ml: 60, isAlcohol: true },
+      { name: 'Bacardi White', ml: 60, isAlcohol: true },
     ],
   },
   {
@@ -289,8 +291,8 @@ export const cocktails: Cocktail[] = [
     name: 'Cosmopolitan',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Grey Goose Original 750 ml', ml: 45, isAlcohol: true },
-      { name: 'Cointreau 700 ml', ml: 20, isAlcohol: true },
+      { name: 'Grey Goose', ml: 45, isAlcohol: true },
+      { name: 'Cointreau', ml: 20, isAlcohol: true },
     ],
   },
   {
@@ -298,9 +300,9 @@ export const cocktails: Cocktail[] = [
     name: 'Mai Tai',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Bacardi Carta Blanca 750 ml', ml: 45, isAlcohol: true },
-      { name: 'Bacardi Ocho 8 Years 700 ml', ml: 15, isAlcohol: true },
-      { name: 'Cointreau 700 ml', ml: 3, isAlcohol: true },
+      { name: 'Bacardi White', ml: 45, isAlcohol: true },
+      { name: 'Bacardi Ocho', ml: 15, isAlcohol: true },
+      { name: 'Cointreau', ml: 3, isAlcohol: true },
     ],
   },
   {
@@ -308,8 +310,8 @@ export const cocktails: Cocktail[] = [
     name: 'Amaretto Sour',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Amaretto "Disaronno" 700 ml', ml: 45, isAlcohol: true },
-      { name: 'Bulleit Bourbon Whisky 700 ml', ml: 15, isAlcohol: true },
+      { name: 'Disaronno Amaretto', ml: 45, isAlcohol: true },
+      { name: 'Bulleit Bourbon', ml: 15, isAlcohol: true },
     ],
   },
   {
@@ -317,7 +319,7 @@ export const cocktails: Cocktail[] = [
     name: 'Cuba Libre',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Bacardi Carta Blanca 750 ml', ml: 60, isAlcohol: true },
+      { name: 'Bacardi White', ml: 60, isAlcohol: true },
     ],
   },
   {
@@ -325,8 +327,8 @@ export const cocktails: Cocktail[] = [
     name: 'Reserve Hangovertini',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Dewar\'s Double Double 27 Years 500 ml', ml: 45, isAlcohol: true },
-      { name: 'Martini Rosso 1 L', ml: 15, isAlcohol: true },
+      { name: 'Dewars Double Double 27 Years', ml: 45, isAlcohol: true },
+      { name: 'Martini Rosso', ml: 15, isAlcohol: true },
     ],
   },
   {
@@ -334,7 +336,7 @@ export const cocktails: Cocktail[] = [
     name: 'Gin Mixo Special',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Bombay Sapphire Gin 750 ml', ml: 60, isAlcohol: true },
+      { name: 'Bombay Sapphire', ml: 60, isAlcohol: true },
     ],
   },
   {
@@ -342,8 +344,8 @@ export const cocktails: Cocktail[] = [
     name: 'Classic Martini',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Bombay Sapphire Gin 750 ml', ml: 50, isAlcohol: true },
-      { name: 'Cocchi Di Torino Extra Dry Vermouth 500 ml', ml: 10, isAlcohol: true },
+      { name: 'Bombay Sapphire', ml: 50, isAlcohol: true },
+      { name: 'Cocchi Extra Dry', ml: 10, isAlcohol: true },
     ],
   },
   {
@@ -351,7 +353,7 @@ export const cocktails: Cocktail[] = [
     name: 'Strawberry Daiquiri',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Bacardi Carta Blanca 750 ml', ml: 60, isAlcohol: true },
+      { name: 'Bacardi White', ml: 60, isAlcohol: true },
     ],
   },
   {
@@ -359,8 +361,8 @@ export const cocktails: Cocktail[] = [
     name: 'Dirty Martini',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Bombay Sapphire Gin 750 ml', ml: 50, isAlcohol: true },
-      { name: 'Cocchi Di Torino Extra Dry Vermouth 500 ml', ml: 10, isAlcohol: true },
+      { name: 'Bombay Sapphire', ml: 50, isAlcohol: true },
+      { name: 'Cocchi Extra Dry', ml: 10, isAlcohol: true },
     ],
   },
   {
@@ -368,8 +370,8 @@ export const cocktails: Cocktail[] = [
     name: 'Lychee Martini',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Grey Goose Original 750 ml', ml: 45, isAlcohol: true },
-      { name: 'Lychee Liqueur Kwai Feh 700 ml', ml: 15, isAlcohol: true },
+      { name: 'Grey Goose', ml: 45, isAlcohol: true },
+      { name: 'Kwai Feh Lychee Liqueur', ml: 15, isAlcohol: true },
     ],
   },
   {
@@ -377,7 +379,7 @@ export const cocktails: Cocktail[] = [
     name: 'Rum Mixo Special',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Bacardi Carta Blanca 750 ml', ml: 60, isAlcohol: true },
+      { name: 'Bacardi White', ml: 60, isAlcohol: true },
     ],
   },
   {
@@ -385,8 +387,8 @@ export const cocktails: Cocktail[] = [
     name: 'Lemon Drop',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Grey Goose Original 750 ml', ml: 45, isAlcohol: true },
-      { name: 'Cointreau 700 ml', ml: 20, isAlcohol: true },
+      { name: 'Grey Goose', ml: 45, isAlcohol: true },
+      { name: 'Cointreau', ml: 20, isAlcohol: true },
     ],
   },
   {
@@ -394,7 +396,7 @@ export const cocktails: Cocktail[] = [
     name: 'Caipirinha',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Canario Cachaca 1 L', ml: 60, isAlcohol: true },
+      { name: 'Canario Cachaca', ml: 60, isAlcohol: true },
     ],
   },
   {
@@ -402,8 +404,8 @@ export const cocktails: Cocktail[] = [
     name: 'Americano',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Martini Rosso 1 L', ml: 30, isAlcohol: true },
-      { name: 'Campari 750 ml', ml: 30, isAlcohol: true },
+      { name: 'Martini Rosso', ml: 30, isAlcohol: true },
+      { name: 'Campari', ml: 30, isAlcohol: true },
     ],
   },
   {
@@ -411,7 +413,7 @@ export const cocktails: Cocktail[] = [
     name: 'Tom Collins',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Bombay Sapphire Gin 750 ml', ml: 60, isAlcohol: true },
+      { name: 'Bombay Sapphire', ml: 60, isAlcohol: true },
     ],
   },
   {
@@ -419,7 +421,7 @@ export const cocktails: Cocktail[] = [
     name: 'Bloody Mary',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Grey Goose Original 750 ml', ml: 60, isAlcohol: true },
+      { name: 'Grey Goose', ml: 60, isAlcohol: true },
     ],
   },
   {
@@ -427,7 +429,7 @@ export const cocktails: Cocktail[] = [
     name: 'Tequila Mixo Special',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Patron Silver Tequila 750 ml', ml: 60, isAlcohol: true },
+      { name: 'Patron Silver', ml: 60, isAlcohol: true },
     ],
   },
   {
@@ -435,7 +437,7 @@ export const cocktails: Cocktail[] = [
     name: 'Gimlet',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Bombay Sapphire Gin 750 ml', ml: 60, isAlcohol: true },
+      { name: 'Bombay Sapphire', ml: 60, isAlcohol: true },
     ],
   },
   {
@@ -443,7 +445,7 @@ export const cocktails: Cocktail[] = [
     name: 'Gin Fizz',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Bombay Sapphire Gin 750 ml', ml: 60, isAlcohol: true },
+      { name: 'Bombay Sapphire', ml: 60, isAlcohol: true },
     ],
   },
   {
@@ -451,8 +453,8 @@ export const cocktails: Cocktail[] = [
     name: 'Hendricks Martini',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Hendrick\'s Gin 700 ml', ml: 50, isAlcohol: true },
-      { name: 'Cocchi Di Torino Extra Dry Vermouth 500 ml', ml: 10, isAlcohol: true },
+      { name: 'Hendricks', ml: 50, isAlcohol: true },
+      { name: 'Cocchi Extra Dry', ml: 10, isAlcohol: true },
     ],
   },
   {
@@ -460,8 +462,8 @@ export const cocktails: Cocktail[] = [
     name: 'Dry Martini',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Bombay Sapphire Gin 750 ml', ml: 50, isAlcohol: true },
-      { name: 'Cocchi Di Torino Extra Dry Vermouth 500 ml', ml: 10, isAlcohol: true },
+      { name: 'Bombay Sapphire', ml: 50, isAlcohol: true },
+      { name: 'Cocchi Extra Dry', ml: 10, isAlcohol: true },
     ],
   },
   {
@@ -469,8 +471,8 @@ export const cocktails: Cocktail[] = [
     name: 'Manhattan',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Bulleit Bourbon Whisky 700 ml', ml: 45, isAlcohol: true },
-      { name: 'Martini Rosso 1 L', ml: 15, isAlcohol: true },
+      { name: 'Bulleit Bourbon', ml: 45, isAlcohol: true },
+      { name: 'Martini Rosso', ml: 15, isAlcohol: true },
     ],
   },
   {
@@ -478,7 +480,7 @@ export const cocktails: Cocktail[] = [
     name: 'Whisky Mixo Special',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Dewar\'s 18 Years 750 ml', ml: 60, isAlcohol: true },
+      { name: 'Dewars 18', ml: 60, isAlcohol: true },
     ],
   },
   {
@@ -486,7 +488,7 @@ export const cocktails: Cocktail[] = [
     name: 'Passionfruit Martini',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Grey Goose Original 750 ml', ml: 60, isAlcohol: true },
+      { name: 'Grey Goose', ml: 60, isAlcohol: true },
     ],
   },
   {
@@ -494,7 +496,7 @@ export const cocktails: Cocktail[] = [
     name: 'Paloma',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Patron Silver Tequila 750 ml', ml: 60, isAlcohol: true },
+      { name: 'Patron Silver', ml: 60, isAlcohol: true },
     ],
   },
   {
@@ -502,8 +504,8 @@ export const cocktails: Cocktail[] = [
     name: 'Dark n Stormy',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Bacardi Carta Blanca 750 ml', ml: 30, isAlcohol: true },
-      { name: 'Kraken Spiced Rum 700 ml', ml: 45, isAlcohol: true },
+      { name: 'Bacardi White', ml: 30, isAlcohol: true },
+      { name: 'Kraken Spiced Rum', ml: 45, isAlcohol: true },
     ],
   },
   {
@@ -511,8 +513,8 @@ export const cocktails: Cocktail[] = [
     name: 'French 75',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Bombay Sapphire Gin 750 ml', ml: 30, isAlcohol: true },
-      { name: 'Ayala Brut Majeur 750 ml', ml: 150, isAlcohol: true },
+      { name: 'Bombay Sapphire', ml: 30, isAlcohol: true },
+      { name: 'Ayala Brut', ml: 150, isAlcohol: true },
     ],
   },
   {
@@ -520,9 +522,9 @@ export const cocktails: Cocktail[] = [
     name: 'Negroni Sbagliato',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Masottina Calmaggiore Prosecco 750 ml', ml: 30, isAlcohol: true },
-      { name: 'Martini Rosso 1 L', ml: 30, isAlcohol: true },
-      { name: 'Campari 750 ml', ml: 30, isAlcohol: true },
+      { name: 'Masottina Prosecco', ml: 30, isAlcohol: true },
+      { name: 'Martini Rosso', ml: 30, isAlcohol: true },
+      { name: 'Campari', ml: 30, isAlcohol: true },
     ],
   },
   {
@@ -530,7 +532,7 @@ export const cocktails: Cocktail[] = [
     name: 'Tequila Sunrise',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Patron Silver Tequila 750 ml', ml: 60, isAlcohol: true },
+      { name: 'Patron Silver', ml: 60, isAlcohol: true },
     ],
   },
   {
@@ -538,7 +540,7 @@ export const cocktails: Cocktail[] = [
     name: 'Vodka Collins',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Grey Goose Original 750 ml', ml: 60, isAlcohol: true },
+      { name: 'Grey Goose', ml: 60, isAlcohol: true },
     ],
   },
   {
@@ -546,8 +548,8 @@ export const cocktails: Cocktail[] = [
     name: 'Black Russian',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Strega Grancaffe 700 ml', ml: 30, isAlcohol: true },
-      { name: 'Grey Goose Original 750 ml', ml: 30, isAlcohol: true },
+      { name: 'Strega Coffee Liqueur', ml: 30, isAlcohol: true },
+      { name: 'Grey Goose', ml: 30, isAlcohol: true },
     ],
   },
   {
@@ -555,8 +557,8 @@ export const cocktails: Cocktail[] = [
     name: 'Limoncello Spritz',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Luxardo Limoncello 750 ml', ml: 45, isAlcohol: true },
-      { name: 'Masottina Calmaggiore Prosecco 750 ml', ml: 90, isAlcohol: true },
+      { name: 'Limoncello', ml: 45, isAlcohol: true },
+      { name: 'Masottina Prosecco', ml: 90, isAlcohol: true },
     ],
   },
   {
@@ -564,7 +566,7 @@ export const cocktails: Cocktail[] = [
     name: 'Pisco Sour',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Demonio De Los Andes Pisco 700 ml', ml: 60, isAlcohol: true },
+      { name: 'Demonio Los Andes Pisco', ml: 60, isAlcohol: true },
     ],
   },
   {
@@ -572,9 +574,9 @@ export const cocktails: Cocktail[] = [
     name: 'Vesper Martini',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Bombay Sapphire Gin 750 ml', ml: 45, isAlcohol: true },
-      { name: 'Grey Goose Original 750 ml', ml: 15, isAlcohol: true },
-      { name: 'Lillet Blanc 750 ml', ml: 7.5, isAlcohol: true },
+      { name: 'Bombay Sapphire', ml: 45, isAlcohol: true },
+      { name: 'Grey Goose', ml: 15, isAlcohol: true },
+      { name: 'Lillet Blanc', ml: 7.5, isAlcohol: true },
     ],
   },
   {
@@ -582,7 +584,7 @@ export const cocktails: Cocktail[] = [
     name: 'Caiprioska',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Grey Goose Original 750 ml', ml: 60, isAlcohol: true },
+      { name: 'Grey Goose', ml: 60, isAlcohol: true },
     ],
   },
   {
@@ -590,8 +592,8 @@ export const cocktails: Cocktail[] = [
     name: 'Midori Sour',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Midori Melon Liqueur 700 ml', ml: 45, isAlcohol: true },
-      { name: 'Grey Goose Original 750 ml', ml: 15, isAlcohol: true },
+      { name: 'Midori', ml: 45, isAlcohol: true },
+      { name: 'Grey Goose', ml: 15, isAlcohol: true },
     ],
   },
   {
@@ -599,7 +601,7 @@ export const cocktails: Cocktail[] = [
     name: 'Basil Smash',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Bombay Sapphire Gin 750 ml', ml: 60, isAlcohol: true },
+      { name: 'Bombay Sapphire', ml: 60, isAlcohol: true },
     ],
   },
   {
@@ -607,9 +609,9 @@ export const cocktails: Cocktail[] = [
     name: 'Boulevardier',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Bulleit Bourbon Whisky 700 ml', ml: 30, isAlcohol: true },
-      { name: 'Martini Rosso 1 L', ml: 30, isAlcohol: true },
-      { name: 'Campari 750 ml', ml: 30, isAlcohol: true },
+      { name: 'Bulleit Bourbon', ml: 30, isAlcohol: true },
+      { name: 'Martini Rosso', ml: 30, isAlcohol: true },
+      { name: 'Campari', ml: 30, isAlcohol: true },
     ],
   },
   {
@@ -617,8 +619,8 @@ export const cocktails: Cocktail[] = [
     name: 'Bramble',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Bombay Sapphire Gin 750 ml', ml: 45, isAlcohol: true },
-      { name: 'Creme De Mure 700 ml', ml: 15, isAlcohol: true },
+      { name: 'Bombay Sapphire', ml: 45, isAlcohol: true },
+      { name: 'Creme De Mure', ml: 15, isAlcohol: true },
     ],
   },
   {
@@ -626,7 +628,7 @@ export const cocktails: Cocktail[] = [
     name: 'Campari Orange',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Campari 750 ml', ml: 45, isAlcohol: true },
+      { name: 'Campari', ml: 45, isAlcohol: true },
     ],
   },
   {
@@ -634,10 +636,10 @@ export const cocktails: Cocktail[] = [
     name: 'Singapore Sling',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Bombay Sapphire Gin 750 ml', ml: 30, isAlcohol: true },
-      { name: 'Cherry Heering 700 ml', ml: 15, isAlcohol: true },
-      { name: 'Benedictine DOM 700 ml', ml: 7, isAlcohol: true },
-      { name: 'Cointreau 700 ml', ml: 10, isAlcohol: true },
+      { name: 'Bombay Sapphire', ml: 30, isAlcohol: true },
+      { name: 'Cherry Heering', ml: 15, isAlcohol: true },
+      { name: 'DOM Benedictine', ml: 7, isAlcohol: true },
+      { name: 'Cointreau', ml: 10, isAlcohol: true },
     ],
   },
   {
@@ -645,7 +647,7 @@ export const cocktails: Cocktail[] = [
     name: 'Tommys Margarita',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Patron Silver Tequila 750 ml', ml: 60, isAlcohol: true },
+      { name: 'Patron Silver', ml: 60, isAlcohol: true },
     ],
   },
   {
@@ -653,8 +655,8 @@ export const cocktails: Cocktail[] = [
     name: 'White Russian',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Strega Grancaffe 700 ml', ml: 30, isAlcohol: true },
-      { name: 'Grey Goose Original 750 ml', ml: 30, isAlcohol: true },
+      { name: 'Strega Coffee Liqueur', ml: 30, isAlcohol: true },
+      { name: 'Grey Goose', ml: 30, isAlcohol: true },
     ],
   },
   {
@@ -662,7 +664,7 @@ export const cocktails: Cocktail[] = [
     name: 'Stolichnaya Martini',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Stolichnaya Elit Vodka 700 ml', ml: 60, isAlcohol: true },
+      { name: 'Stolichnaya Elit', ml: 60, isAlcohol: true },
     ],
   },
   {
@@ -670,9 +672,9 @@ export const cocktails: Cocktail[] = [
     name: 'B52',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Strega Grancaffe 700 ml', ml: 15, isAlcohol: true },
-      { name: 'Cointreau 700 ml', ml: 15, isAlcohol: true },
-      { name: 'Baileys Cream 700 ml', ml: 15, isAlcohol: true },
+      { name: 'Strega Coffee Liqueur', ml: 15, isAlcohol: true },
+      { name: 'Cointreau', ml: 15, isAlcohol: true },
+      { name: 'Baileys', ml: 15, isAlcohol: true },
     ],
   },
   {
@@ -680,7 +682,7 @@ export const cocktails: Cocktail[] = [
     name: 'Jager Bomb',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Jagermeister Herb Liqueur 700 ml', ml: 45, isAlcohol: true },
+      { name: 'Jagermeister', ml: 45, isAlcohol: true },
     ],
   },
   {
@@ -688,7 +690,7 @@ export const cocktails: Cocktail[] = [
     name: 'French Martini',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Grey Goose Original 750 ml', ml: 45, isAlcohol: true },
+      { name: 'Grey Goose', ml: 45, isAlcohol: true },
     ],
   },
   {
@@ -696,9 +698,9 @@ export const cocktails: Cocktail[] = [
     name: 'Hanky Panky',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Bombay Sapphire Gin 750 ml', ml: 45, isAlcohol: true },
-      { name: 'Fernet Branca 1 L', ml: 7, isAlcohol: true },
-      { name: 'Martini Rosso 1 L', ml: 15, isAlcohol: true },
+      { name: 'Bombay Sapphire', ml: 45, isAlcohol: true },
+      { name: 'Fernet Branca', ml: 7, isAlcohol: true },
+      { name: 'Martini Rosso', ml: 15, isAlcohol: true },
     ],
   },
   {
@@ -706,8 +708,8 @@ export const cocktails: Cocktail[] = [
     name: 'Sidecar',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Henessy VSOP 700 ml', ml: 45, isAlcohol: true },
-      { name: 'Cointreau 700 ml', ml: 20, isAlcohol: true },
+      { name: 'Hennessy VSOP', ml: 45, isAlcohol: true },
+      { name: 'Cointreau', ml: 20, isAlcohol: true },
     ],
   },
   {
@@ -715,8 +717,8 @@ export const cocktails: Cocktail[] = [
     name: 'Mezcal Margarita',
     category: 'Cocktail',
     ingredients: [
-      { name: 'La Luna Mezcal 1 L', ml: 45, isAlcohol: true },
-      { name: 'Cointreau 700 ml', ml: 20, isAlcohol: true },
+      { name: 'La Luna Mezcal', ml: 45, isAlcohol: true },
+      { name: 'Cointreau', ml: 20, isAlcohol: true },
     ],
   },
   {
@@ -724,7 +726,7 @@ export const cocktails: Cocktail[] = [
     name: 'Screwdriver',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Grey Goose Original 750 ml', ml: 60, isAlcohol: true },
+      { name: 'Grey Goose', ml: 60, isAlcohol: true },
     ],
   },
   {
@@ -732,7 +734,7 @@ export const cocktails: Cocktail[] = [
     name: 'Strawberry Margarita',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Patron Silver Tequila 750 ml', ml: 60, isAlcohol: true },
+      { name: 'Patron Silver', ml: 60, isAlcohol: true },
     ],
   },
   {
@@ -740,7 +742,7 @@ export const cocktails: Cocktail[] = [
     name: 'Irish Coffee',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Bushmil Black Bush Irish Whiskey 700 ml', ml: 60, isAlcohol: true },
+      { name: 'Bushmills Black', ml: 60, isAlcohol: true },
     ],
   },
   {
@@ -748,7 +750,7 @@ export const cocktails: Cocktail[] = [
     name: 'London Mule',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Bombay Sapphire Gin 750 ml', ml: 60, isAlcohol: true },
+      { name: 'Bombay Sapphire', ml: 60, isAlcohol: true },
     ],
   },
   {
@@ -756,8 +758,8 @@ export const cocktails: Cocktail[] = [
     name: 'El Diablo',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Patron Silver Tequila 750 ml', ml: 45, isAlcohol: true },
-      { name: 'Creme De Cassis "Giffard" 700 ml', ml: 15, isAlcohol: true },
+      { name: 'Patron Silver', ml: 45, isAlcohol: true },
+      { name: 'Creme de Cassis', ml: 15, isAlcohol: true },
     ],
   },
   {
@@ -765,8 +767,8 @@ export const cocktails: Cocktail[] = [
     name: 'Godfather',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Dewar\'s 18 Years 750 ml', ml: 30, isAlcohol: true },
-      { name: 'Amaretto "Disaronno" 700 ml', ml: 30, isAlcohol: true },
+      { name: 'Dewars 18', ml: 30, isAlcohol: true },
+      { name: 'Disaronno Amaretto', ml: 30, isAlcohol: true },
     ],
   },
   {
@@ -774,7 +776,7 @@ export const cocktails: Cocktail[] = [
     name: 'Roku Martini',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Roku Gin 700 ml', ml: 60, isAlcohol: true },
+      { name: 'Roku', ml: 60, isAlcohol: true },
     ],
   },
   {
@@ -782,7 +784,7 @@ export const cocktails: Cocktail[] = [
     name: 'Cassis Orange',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Creme De Cassis "Giffard" 700 ml', ml: 45, isAlcohol: true },
+      { name: 'Creme de Cassis', ml: 45, isAlcohol: true },
     ],
   },
   {
@@ -790,23 +792,7 @@ export const cocktails: Cocktail[] = [
     name: 'Fitzgerald',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Bombay Sapphire Gin 750 ml', ml: 60, isAlcohol: true },
-    ],
-  },
-  {
-    id: 'temple-run',
-    name: 'Temple Run',
-    category: 'Cocktail',
-    ingredients: [
-      { name: 'Mango Juice (1L)', ml: 83.08, isAlcohol: false },
-      { name: 'Coconut Juice (1L)', ml: 51.68, isAlcohol: false },
-      { name: 'Silpin Jasmine Rice Syrup 500 ml', ml: 3.08, isAlcohol: false },
-      { name: 'Monin Coconut Syrup 700 ml', ml: 3.08, isAlcohol: false },
-      { name: 'Water', ml: 3.08, isAlcohol: false },
-      { name: 'Citric Acid (grams)', ml: 0.12, isAlcohol: false },
-      { name: 'Malic Acid (grams)', ml: 0.06, isAlcohol: false },
-      { name: 'Pokky Chocolate', ml: 0.2, isAlcohol: false }, // 2 sticks of 10
-      { name: 'Chrysanthemum flower', ml: 1, isAlcohol: false },
+      { name: 'Bombay Sapphire', ml: 60, isAlcohol: true },
     ],
   },
   {
@@ -814,29 +800,26 @@ export const cocktails: Cocktail[] = [
     name: 'Lost in Chatuchak',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Guava Juice (1L)', ml: 55, isAlcohol: false },
+      { name: 'Guava juice', ml: 55, isAlcohol: false },
       { name: 'Water', ml: 12.49, isAlcohol: false },
-      { name: 'Monin Jasmine Syrup 700 ml', ml: 4.16, isAlcohol: false },
-      { name: 'Silpin Tamarind Syrup 500 ml', ml: 8.33, isAlcohol: false },
-      { name: 'Citric Acid (grams)', ml: 0.50, isAlcohol: false },
-      { name: 'Malic Acid (grams)', ml: 0.25, isAlcohol: false },
-      { name: 'Spiced banana chip', ml: 1, isAlcohol: false },
+      { name: 'Jasmine syrup', ml: 4.16, isAlcohol: false },
+      { name: 'Tamarind syrup', ml: 8.33, isAlcohol: false },
+      { name: 'Citric acid', ml: 0.5, isAlcohol: false },
+      { name: 'Malic acid', ml: 0.25, isAlcohol: false },
     ],
   },
   {
-    id: '7-11-sugar-rush',
-    name: '7/11 Sugar Rush',
+    id: 'temple-run',
+    name: 'Temple Run',
     category: 'Cocktail',
     ingredients: [
-      { name: 'Bacardi Carta Blanca 750 ml', ml: 37.5, isAlcohol: true },
-      { name: 'Oolong Tea (grams)', ml: 0.5625, isAlcohol: false },
-      { name: 'Palm Sugar (grams)', ml: 4.1625, isAlcohol: false },
-      { name: 'Silpin Jasmine Rice Syrup 500 ml', ml: 2.08, isAlcohol: false },
-      { name: 'Coconut Juice (1L)', ml: 6.25, isAlcohol: false },
-      { name: 'Kraken Spiced Rum 700 ml', ml: 18.75, isAlcohol: true },
-      { name: 'Creme De Cacao White "BOLS" 700 ml', ml: 6.25, isAlcohol: true },
-      { name: 'Orange Blossom Water', ml: 0.06, isAlcohol: false },
-      { name: 'Almond Biscotti', ml: 1, isAlcohol: false },
+      { name: 'Mango juice', ml: 83.08, isAlcohol: false },
+      { name: 'Coconut juice', ml: 51.68, isAlcohol: false },
+      { name: 'Jasmine rice silpin', ml: 3.08, isAlcohol: false },
+      { name: 'Coconut Monin', ml: 3.08, isAlcohol: false },
+      { name: 'Water', ml: 3.08, isAlcohol: false },
+      { name: 'Citric acid', ml: 0.12, isAlcohol: false },
+      { name: 'Malic acid', ml: 0.06, isAlcohol: false },
     ],
   },
 ];
@@ -845,7 +828,7 @@ export const spiritsByGlass45: string[] = [
   'Hendricks', 'Tanqueray 10', 'Roku', 'No.3', 'Bombay Sapphire', 'Dewars 18',
   'Glenfiddich 18', 'Wild Turkey Bourbon', 'Johnnie Walker Blue Label', 'Glenfiddich 21',
   'Dewars 15', 'Lagavulin 16', 'Bushmills Black', 'Macallan 18 Sherry Oak',
-  'Macallan Rare Cask', 'Aberfeldy 21', 'Grey Goose Original 750 ml', 'Ciroc', 'Stolichnaya Elit',
+  'Macallan Rare Cask', 'Aberfeldy 21', 'Grey Goose', 'Ciroc', 'Stolichnaya Elit',
   'Patron Reposado', 'Patron Anejo', 'Don Julio 1942', '1800 Cristalino Anejo',
   'Patron El Cielo', 'Montelobos Espadin', 'Patron El Alto', 'Bacardi Diez',
   'Zacapa 23', 'Matusalem 23', 'Hennessy VSOP', 'Remy Martin VSOP', 'Hennessy XO',
@@ -855,7 +838,7 @@ export const spiritsByGlass45: string[] = [
   'St. Germain', 'Dewars Double Double 21', 'Dewars Double Double 27 Years',
   'Wild Turkey Rye', 'Johnnie Walker King George', 'Macallan Double Cask 18',
   'Ayala Brut', 'Peachtree Peach Liqueur', 'Creme de Cassis', 'Masottina Prosecco',
-  'Bacardi White', 'Bacardi Ocho', 'Hoxton Gin', 'Patron Silver Tequila 750 ml', 'Bulleit Bourbon',
+  'Bacardi White', 'Bacardi Ocho', 'Hoxton Gin', 'Patron Silver', 'Bulleit Bourbon',
   'Kwai Feh Lychee Liqueur', 'Galliano Vanilla Liqueur', 'Demonio Los Andes Pisco', 'La Luna Mezcal',
   'Tio Pepe Sherry', 'Emishiki Sensation Sake', 'Bergamotto Fantastico Bergamot Liqueur',
   'Blue Curacao', 'Johnnie Walker Gold', 'Palo Cortado Sherry', 'Campari Cask Tales',
@@ -877,7 +860,7 @@ export const spiritsByBottle: { name: string, ml: number }[] = [
   { name: 'Roku', ml: 700 },
   { name: 'Hendricks', ml: 700 },
   { name: 'No.3', ml: 700 },
-  { name: 'Grey Goose Original 750 ml', ml: 750 },
+  { name: 'Grey Goose', ml: 750 },
   { name: 'Stolichnaya Elit', ml: 700 },
   { name: 'Ciroc', ml: 750 },
   { name: 'Patron Reposado', ml: 750 },
@@ -906,7 +889,7 @@ export const spiritsByBottle: { name: string, ml: number }[] = [
   { name: 'Bacardi White', ml: 750 },
   { name: 'Bacardi Ocho', ml: 750 },
   { name: 'Hoxton Gin', ml: 700 },
-  { name: 'Patron Silver Tequila 750 ml', ml: 750 },
+  { name: 'Patron Silver', ml: 750 },
   { name: 'Masottina Prosecco', ml: 750 },
   { name: 'St. Germain', ml: 700 },
   { name: 'Cointreau', ml: 700 },

@@ -6,6 +6,13 @@
     <title>Sky Bar Inventory</title>
   </head>
   <body>
+    <script>
+      const originalError = console.error;
+      console.error = (...args) => {
+        if (typeof args[0] === 'string' && /ResizeObserver/.test(args[0])) return;
+        originalError(...args);
+      };
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
