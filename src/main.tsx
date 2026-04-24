@@ -10,7 +10,8 @@ if (typeof window !== 'undefined') {
     const message = typeof msg === 'string' ? msg : (msg.message || String(msg));
     return (
       message.includes('ResizeObserver') ||
-      message.includes('loop limit exceeded')
+      message.includes('loop limit exceeded') ||
+      message.includes('undelivered notifications')
     );
   };
 

@@ -329,6 +329,7 @@ export default function App() {
     const cached = localStorage.getItem('skybar_batch_logs_v1');
     return cached ? JSON.parse(cached) : [];
   });
+  const [selectedLogIds, setSelectedLogIds] = useState<string[]>([]);
 
   const [activeBatch, setActiveBatch] = useState<ActiveBatch | null>(() => {
     const cached = localStorage.getItem('skybar_active_batch_v1');
@@ -1134,6 +1135,28 @@ export default function App() {
         }
       }
       setBatchLogs(prev => prev.filter(l => l.id !== id));
+      setSelectedLogIds(prev => prev.filter(i => i !== id));
+    }
+  };
+
+  const handleDeleteSelectedBatchLogs = async () => {
+    if (window.confirm(`Are you sure you want to delete ${selectedLogIds.length} batch logs?`)) {
+      if (user) {
+        setIsSyncing(true);
+        try {
+          const batch = writeBatch(db);
+          selectedLogIds.forEach(id => {
+            batch.delete(doc(db, 'batchLogs', id));
+          });
+          await batch.commit();
+          setBatchLogs(prev => prev.filter(l => !selectedLogIds.includes(l.id)));
+          setSelectedLogIds([]);
+        } catch (err) {
+          handleFirestoreError(err, 'write', 'batch-logs-delete');
+        } finally {
+          setIsSyncing(false);
+        }
+      }
     }
   };
 
@@ -1916,7 +1939,14 @@ export default function App() {
                 </div>
 
                 <div className="space-y-6">
-                   <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 ml-2">Batch Production Log</h3>
+                   <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 ml-2 flex justify-between items-center">
+                     Batch Production Log
+                     {selectedLogIds.length > 0 && (
+                       <Button variant="ghost" size="sm" onClick={handleDeleteSelectedBatchLogs} className="text-red-500 hover:text-red-600 h-6 text-[10px]">
+                         Delete Selected ({selectedLogIds.length})
+                       </Button>
+                     )}
+                   </h3>
                    <ScrollArea className="h-[600px] pr-4">
                       <div className="space-y-3">
                          {batchLogs.length === 0 ? (
