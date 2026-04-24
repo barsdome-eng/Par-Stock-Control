@@ -836,17 +836,7 @@ export default function App() {
     const qStock = query(collection(db, 'stock'), where('userId', '==', user.uid));
     const unsubStock = onSnapshot(qStock, (snapshot) => {
       const data = snapshot.docs.map(d => d.data() as StockLevel);
-      if (data.length > 0) {
-        setStock(prev => {
-          const newStock = [...prev];
-          data.forEach(s => {
-            const idx = newStock.findIndex(ns => ns.ingredientName === s.ingredientName);
-            if (idx !== -1) newStock[idx] = s;
-            else newStock.push(s);
-          });
-          return newStock;
-        });
-      }
+      setStock(data);
     });
 
     const qLogs = query(collection(db, 'logs'), where('userId', '==', user.uid));
