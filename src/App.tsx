@@ -276,42 +276,11 @@ const initialMapping: { [key: string]: string } = {
   "Dry Vermouth": "Cocchi Di Torino Extra Dry Vermouth 500 ml",
   "Kraken Spiced Rum": "Kraken Spiced Rum 700 ml",
   "Emishiki Sensation Sake": "Emishiki Sensation Sake 1.5 L",
-  "Hops (grams)": "Hops (grams)",
-  "Dried butterfly pea flowers (grams)": "Dried Butterfly Pea Flowers (grams)",
-  "Mango Juice": "Mango Juice (1L)",
-  "Coconut Juice": "Coconut Juice (1L)",
-  "Guava Juice": "Guava Juice (1L)",
-  "Simple syrup": "Simple Syrup (1L)",
-  "Agave syrup": "Agave Syrup (1L)",
-  "Ginger ale": "Ginger Ale (330ml)",
-  "Tonic water": "Tonic Water (330ml)",
-  "Club soda": "Club Soda (330ml)",
-  "Orange juice": "Orange Juice (1L)",
-  "Pineapple juice": "Pineapple Juice (1L)",
-  "Lime juice": "Lime Juice (1L)",
-  "Lemon juice": "Lemon Juice (1L)",
-  "Silpin Jasmine Rice Syrup 500 ml": "Silpin Jasmine Rice Syrup 500 ml",
-  "Silpin Tamarind Syrup 500 ml": "Silpin Tamarind Syrup 500 ml",
-  "Monin Rose 700 ml": "Monin Rose Syrup 700 ml",
-  "Coconut Monin 700 ml": "Monin Coconut Syrup 700 ml",
-  "Passionfruit Monin 700 ml": "Monin Passionfruit Syrup 700 ml",
-  "Strawberry Monin 700 ml": "Monin Strawberry Syrup 700 ml",
-  "Pineapple Monin 700 ml": "Monin Pineapple Syrup 700 ml",
-  "Butterscotch Monin 700 ml": "Monin Butterscotch Syrup 700 ml",
-  "White Wine (Sauvignon Blanc) 750 ml": "White Wine (Sauvignon Blanc) 750 ml",
-  "Earl Grey tea (grams)": "Earl Grey Tea (grams)",
-  "Oolong tea (grams)": "Oolong Tea (grams)",
-  "Palm sugar (grams)": "Palm Sugar (grams)",
-  "Citric acid (grams)": "Citric Acid (grams)",
-  "Malic acid (grams)": "Malic Acid (grams)",
-  "Salt (grams)": "Salt (grams)",
-  "Hale Blue Boy Jasmine 710 ml": "Hale Blue Boy Jasmine 710 ml",
 };
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
-  const [isSigningIn, setIsSigningIn] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [history, setHistory] = useState<{usage: UsageRecord[], stock: StockLevel[]}[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -422,7 +391,7 @@ export default function App() {
     const allInternalNames = new Set<string>();
     
     fullCocktailList.forEach(c => c.ingredients.forEach(i => {
-      allInternalNames.add(i.name);
+      if (i.isAlcohol) allInternalNames.add(i.name);
     }));
     Object.keys(spiritMapping).forEach(k => allInternalNames.add(k));
 
@@ -433,18 +402,7 @@ export default function App() {
       }
     });
 
-    const masottinaIndex = initialExcelOrder.indexOf("Masottina Calmaggiore Prosecco 750 ml");
-    const stockOrder = initialExcelOrder.slice(0, masottinaIndex + 1);
-    
-    return Array.from(displayToInternal.values()).filter(internalName => {
-        const displayName = spiritMapping[internalName] || internalName;
-        // Check if ingredient name contains "grams" or "(g)" if it should be tracked?
-        // User: "I don't keep track of anything in the stock that you've listed after Masottina Prosecco"
-        // Also: "I see the non alcoholic items in the signature cocktails as well make sure I don’t see them when I select the cocktail for par cutting" - Wait, this is for recipe display.
-        
-        // Let's filter stock ingredients.
-        return stockOrder.includes(displayName);
-    });
+    return Array.from(displayToInternal.values());
   }, [fullCocktailList, spiritMapping]);
 
   const getExcelDisplayName = (internalName: string) => {
@@ -842,18 +800,6 @@ export default function App() {
     }
   }, [selectedCocktail]);
 
-  const handleSignIn = async () => {
-    if (isSigningIn) return;
-    setIsSigningIn(true);
-    try {
-      await signIn();
-    } catch (err) {
-      console.error("Sign in failed:", err);
-    } finally {
-      setIsSigningIn(false);
-    }
-  };
-
   const SIGNATURE_COCKTAILS = ['Dome266', 'Dome Colada', 'Sukhumvit After Dark', 'Khaosan Regret', 'Jodd Fair Gluttony', 'Sunset at Chao Phraya', 'BTS Highball', 'Hotel Lobby Drams'];
 
   const monthlySummary = useMemo(() => {
@@ -928,32 +874,12 @@ export default function App() {
   const getBottleSize = (name: string) => {
     if (bottleSizeMap[name]) return bottleSizeMap[name];
     const ln = getExcelDisplayName(name).toLowerCase();
-    
-    // Explicit size detection from name
-    const mlMatch = ln.match(/(\d+)\s*(ml)/i);
-    if (mlMatch) return parseInt(mlMatch[1]);
-    
-    const lMatch = ln.match(/(\d+(?:\.\d+)?)\s*(l|kg)/i);
-    if (lMatch) return parseFloat(lMatch[1]) * 1000;
-
-    const gMatch = ln.match(/(\d+)\s*(grams|g)/i);
-    if (gMatch) return parseInt(gMatch[1]);
-
     if (ln.includes(' 1 l')) return 1000;
     if (ln.includes(' 1.5 l')) return 1500;
     if (ln.includes('750 ml')) return 750;
     if (ln.includes('700 ml')) return 700;
     if (ln.includes('500 ml')) return 500;
     if (ln.includes('375 ml')) return 375;
-    
-    // Fallbacks for common non-alcohol categories
-    if (ln.includes('juice')) return 1000;
-    if (ln.includes('syrup')) return 700;
-    if (ln.includes('monin')) return 700;
-    if (ln.includes('silpin')) return 500;
-    if (ln.includes('water')) return 1000;
-    if (ln.includes('grams')) return 1000; // Assume 1kg per unit if grams in name but no size
-    
     return 750;
   };
 
@@ -977,34 +903,20 @@ export default function App() {
   const beverageOrderAnalysis = useMemo(() => {
     const fourDaysAgo = Date.now() - (4 * 24 * 60 * 60 * 1000);
     const recentLogs = logs.filter(log => log.timestamp > fourDaysAgo);
-    const recentBatchLogs = batchLogs.filter(log => log.timestamp > fourDaysAgo);
     
     const drinkTallies: { [id: string]: number } = {};
-    const batchTallies: { [id: string]: number } = {};
     const ingredientDepletion: { [name: string]: number } = {};
 
-    // 1. Depletion from individual sales
     recentLogs.forEach(log => {
       log.usage.forEach(record => {
         drinkTallies[record.cocktailId] = (drinkTallies[record.cocktailId] || 0) + record.quantity;
         const item = fullCocktailList.find(c => c.id === record.cocktailId);
         item?.ingredients.forEach(ing => {
-          // Track all ingredients (not just alcohol as user asked for syrups/tea too)
-          ingredientDepletion[ing.name] = (ingredientDepletion[ing.name] || 0) + (ing.ml * record.quantity);
+          if (ing.isAlcohol) {
+            ingredientDepletion[ing.name] = (ingredientDepletion[ing.name] || 0) + (ing.ml * record.quantity);
+          }
         });
       });
-    });
-
-    // 2. Depletion from batch production
-    recentBatchLogs.forEach(blog => {
-      batchTallies[blog.recipeId] = (batchTallies[blog.recipeId] || 0) + blog.targetVolume;
-      const recipe = batchRecipes.find(r => r.id === blog.recipeId);
-      if (recipe) {
-        const factor = blog.targetVolume / recipe.baseVolume;
-        recipe.ingredients.forEach(ing => {
-          ingredientDepletion[ing.name] = (ingredientDepletion[ing.name] || 0) + (ing.ml * factor);
-        });
-      }
     });
 
     const topDrinks = Object.entries(drinkTallies)
@@ -1016,14 +928,6 @@ export default function App() {
       .sort((a, b) => b.quantity - a.quantity)
       .slice(0, 8);
 
-    const topBatches = Object.entries(batchTallies)
-      .map(([id, vol]) => ({
-        item: batchRecipes.find(r => r.id === id),
-        volume: vol
-      }))
-      .filter(b => b.item)
-      .sort((a, b) => b.volume - a.volume);
-
     const sortedDepletion = Object.entries(ingredientDepletion)
       .map(([name, totalMl]) => {
         const avgDailyMl = totalMl / 4;
@@ -1033,8 +937,8 @@ export default function App() {
       })
       .sort((a, b) => b.totalMl - a.totalMl);
 
-    return { topDrinks, topBatches, sortedDepletion };
-  }, [logs, batchLogs, fullCocktailList, batchRecipes]);
+    return { topDrinks, sortedDepletion };
+  }, [logs, fullCocktailList]);
 
   const pushToHistory = () => {
     setHistory(prev => [{ usage: [...usage], stock: [...stock] }, ...prev].slice(0, 10));
@@ -1458,8 +1362,8 @@ export default function App() {
                    </Button>
                  </div>
                ) : (
-                 <Button onClick={handleSignIn} disabled={isSigningIn} className="bg-white text-black hover:bg-zinc-200 rounded-full text-[10px] md:text-xs font-bold px-3 md:px-6 h-8 md:h-9 gap-1.5 md:gap-2">
-                   <LogIn className="w-3.5 h-3.5 md:w-4 md:h-4" /> {isSigningIn ? 'SIGNING IN...' : 'SIGN IN'}
+                 <Button onClick={signIn} className="bg-white text-black hover:bg-zinc-200 rounded-full text-[10px] md:text-xs font-bold px-3 md:px-6 h-8 md:h-9 gap-1.5 md:gap-2">
+                   <LogIn className="w-3.5 h-3.5 md:w-4 md:h-4" /> SIGN IN
                  </Button>
                )}
           </div>
@@ -1693,9 +1597,7 @@ export default function App() {
                              </div>
                              <div className="flex items-center gap-2">
                                 <Input type="number" step="0.1" value={s.initialMl/size || ''} onChange={e => updateStock(s.ingredientName, (parseFloat(e.target.value)||0)*size)} className="w-20 text-right font-mono text-xs bg-zinc-900 border-zinc-800 h-8" />
-                                <span className="text-[10px] text-zinc-600 uppercase w-8">
-                                  {s.ingredientName.toLowerCase().includes('grams') || s.ingredientName.toLowerCase().includes('(g)') ? 'GRAMS' : 'Btl'}
-                                </span>
+                                <span className="text-[10px] text-zinc-600">BTL</span>
                              </div>
                           </div>
                         )
@@ -1869,71 +1771,56 @@ export default function App() {
             </TabsContent>
 
             <TabsContent value="beverage-order" className="m-0 space-y-6 pb-20">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-zinc-900 border border-zinc-800 p-6 rounded-[32px] gap-4 shadow-xl">
+              <div className="flex justify-between items-center bg-zinc-900 border border-zinc-800 p-6 rounded-[32px]">
                 <div>
                   <h2 className="text-2xl font-bold uppercase tracking-tight text-rose-500">Beverage Order Analytics</h2>
-                  <p className="text-sm text-zinc-500">Combined depletion analysis (Sales + Batching Events) for last 4 days</p>
+                  <p className="text-sm text-zinc-500">Last 4 days depletion analysis and ordering suggestions</p>
                 </div>
-                <div className="flex items-center gap-2 px-6 py-3 bg-rose-500/10 border border-rose-500/20 rounded-2xl">
-                  <Zap className="w-5 h-5 text-rose-500 animate-pulse" />
-                  <span className="text-xs font-bold text-rose-500 uppercase tracking-widest">Velocity Integrated</span>
+                <div className="flex items-center gap-2 px-4 py-2 bg-rose-500/10 border border-rose-500/20 rounded-2xl">
+                  <Zap className="w-4 h-4 text-rose-500" />
+                  <span className="text-xs font-bold text-rose-500 uppercase">Velocity Based</span>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                 {/* Activity Stats Column */}
-                 <div className="space-y-8 lg:col-span-1">
-                    <div>
-                       <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500 mb-4 px-2">Top Sales Activity</h3>
-                       <div className="space-y-2">
-                          {beverageOrderAnalysis.topDrinks.length === 0 ? (
-                            <Card className="bg-zinc-900/50 border-zinc-800 p-8 text-center text-zinc-700 rounded-3xl border-dashed">
-                              <p className="text-[10px] uppercase font-mono italic tracking-tighter">Awaiting Sales Logs</p>
-                            </Card>
-                          ) : beverageOrderAnalysis.topDrinks.map((d, i) => (
-                            <div key={i} className="bg-zinc-900 border border-zinc-800 p-3 rounded-2xl flex items-center justify-between hover:bg-zinc-800/50 transition-colors">
-                                <div className="flex items-center gap-3">
-                                   <span className="text-[10px] font-mono text-rose-500 font-bold opacity-50">{i+1}</span>
-                                   <p className="text-xs font-bold text-white uppercase truncate max-w-[100px]">{d.item?.name}</p>
-                                </div>
-                                <Badge className="bg-zinc-800 border-none font-mono text-[10px] text-zinc-400">{d.quantity}</Badge>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                 {/* Top Sellers Column */}
+                 <div className="space-y-6">
+                    <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500 ml-2">Top Sold (4 Days)</h3>
+                    <div className="space-y-3">
+                       {beverageOrderAnalysis.topDrinks.length === 0 ? (
+                         <Card className="bg-zinc-900 border-zinc-800 p-12 text-center text-zinc-700 rounded-[32px]">
+                           <p className="text-[10px] uppercase">No data for last 4 days</p>
+                         </Card>
+                       ) : beverageOrderAnalysis.topDrinks.map((d, i) => (
+                         <Card key={i} className="bg-zinc-900 border-zinc-800 p-4 rounded-2xl flex items-center justify-between group hover:border-rose-500/30 transition-all">
+                            <div className="flex items-center gap-4">
+                               <div className="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center text-[10px] font-bold text-zinc-500 font-mono">#{i+1}</div>
+                               <div>
+                                 <p className="text-sm font-bold text-white uppercase tracking-tight">{d.item?.name}</p>
+                                 <p className="text-[10px] text-zinc-500">{d.item?.category}</p>
+                               </div>
                             </div>
-                          ))}
-                       </div>
-                    </div>
-
-                    <div>
-                       <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-blue-500/70 mb-4 px-2">Batch Production Activity</h3>
-                       <div className="space-y-2">
-                          {beverageOrderAnalysis.topBatches.length === 0 ? (
-                            <Card className="bg-zinc-900/50 border-zinc-800 p-8 text-center text-zinc-700 rounded-3xl border-dashed">
-                              <p className="text-[10px] uppercase font-mono italic tracking-tighter">No Batches Logged</p>
-                            </Card>
-                          ) : beverageOrderAnalysis.topBatches.map((b, i) => (
-                            <div key={i} className="bg-zinc-900 border border-zinc-800 p-3 rounded-2xl flex items-center justify-between hover:bg-zinc-800/50 transition-colors">
-                                <div className="flex items-center gap-3">
-                                   <span className="text-[10px] font-mono text-blue-500 font-bold opacity-50">{i+1}</span>
-                                   <p className="text-xs font-bold text-white uppercase truncate max-w-[100px]">{b.item?.name}</p>
-                                </div>
-                                <Badge className="bg-blue-500/10 text-blue-400 border-none font-mono text-[10px]">{b.volume}L</Badge>
+                            <div className="text-right">
+                               <p className="text-lg font-bold text-rose-500 font-mono">{d.quantity}</p>
+                               <p className="text-[10px] text-zinc-600 uppercase font-bold">Qty</p>
                             </div>
-                          ))}
-                       </div>
+                         </Card>
+                       ))}
                     </div>
                  </div>
 
-                 {/* Detailed Ordering List */}
-                 <div className="lg:col-span-3 space-y-6">
-                    <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500 ml-2">Material Order List</h3>
+                 {/* Order Suggestions Column */}
+                 <div className="lg:col-span-2 space-y-6">
+                    <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500 ml-2">Suggested Spirits Reorder</h3>
                     <Card className="bg-zinc-900 border-zinc-800 rounded-[32px] overflow-hidden">
                        <div className="overflow-x-auto">
                           <table className="w-full text-sm">
                              <thead>
                                 <tr className="bg-zinc-800 shadow-sm text-[10px] uppercase text-zinc-500 text-left">
-                                   <th className="p-6 font-bold">Material Ingredient</th>
-                                   <th className="p-6 font-bold text-right">4-Day Total Vol</th>
-                                   <th className="p-6 font-bold text-right">Avg Daily</th>
-                                   <th className="p-6 font-bold text-right">Forecast Action</th>
+                                   <th className="p-6 font-bold">Spirit Ingredient</th>
+                                   <th className="p-6 font-bold text-right">4-Day Vol (ML)</th>
+                                   <th className="p-6 font-bold text-right">Avg Daily (ML)</th>
+                                   <th className="p-6 font-bold text-right">Suggested (Btls)</th>
                                 </tr>
                              </thead>
                              <tbody>
@@ -1941,32 +1828,24 @@ export default function App() {
                                   <tr>
                                     <td colSpan={4} className="p-12 text-center text-zinc-700 uppercase text-[10px]">Insufficient history to generate order</td>
                                   </tr>
-                                ) : beverageOrderAnalysis.sortedDepletion.map((s, idx) => {
-                                  const isGrams = s.name.toLowerCase().includes('grams') || s.name.toLowerCase().includes('(g)');
-                                  const unitLabel = isGrams ? 'Units (G)' : 'Units';
-                                  return (
-                                    <tr key={idx} className="border-t border-zinc-800/50 hover:bg-white/5 transition-colors group">
-                                       <td className="p-6">
-                                          <p className="font-bold text-white uppercase tracking-tight group-hover:text-rose-400 transition-colors uppercase">{getExcelDisplayName(s.name)}</p>
-                                          <p className="text-[10px] text-zinc-600 font-mono tracking-tighter">BASE UNIT: {s.bSize}{isGrams ? 'g' : 'ml'}</p>
-                                       </td>
-                                       <td className="p-6 text-right font-mono text-zinc-300">
-                                          {s.totalMl >= 1000 && !isGrams ? `${(s.totalMl/1000).toFixed(2)}L` : `${s.totalMl.toFixed(0)}${isGrams ? 'g' : 'ml'}`}
-                                       </td>
-                                       <td className="p-6 text-right font-mono text-zinc-500">
-                                          {s.avgDailyMl >= 1000 && !isGrams ? `${(s.avgDailyMl/1000).toFixed(2)}L` : `${s.avgDailyMl.toFixed(1)}${isGrams ? 'g' : 'ml'}`}
-                                       </td>
-                                       <td className="p-6 text-right">
-                                          <div className="flex flex-col items-end">
-                                            <span className={`text-lg font-bold font-mono ${s.bottlesNeeded >= 1 ? 'text-emerald-500' : 'text-zinc-500'}`}>
-                                              {s.bottlesNeeded.toFixed(1)}
-                                            </span>
-                                            <span className="text-[9px] uppercase font-bold text-zinc-600">{unitLabel}</span>
-                                          </div>
-                                       </td>
-                                    </tr>
-                                  );
-                                })}
+                                ) : beverageOrderAnalysis.sortedDepletion.map((s, idx) => (
+                                  <tr key={idx} className="border-t border-zinc-800/50 hover:bg-white/5 transition-colors group">
+                                     <td className="p-6">
+                                        <p className="font-bold text-white uppercase tracking-tight group-hover:text-rose-400 transition-colors">{getExcelDisplayName(s.name)}</p>
+                                        <p className="text-[10px] text-zinc-600">Unit: {s.bSize}ml</p>
+                                     </td>
+                                     <td className="p-6 text-right font-mono text-zinc-300">{s.totalMl.toFixed(0)}</td>
+                                     <td className="p-6 text-right font-mono text-zinc-500">{s.avgDailyMl.toFixed(1)}</td>
+                                     <td className="p-6 text-right">
+                                        <div className="flex flex-col items-end">
+                                          <span className={`text-lg font-bold font-mono ${s.bottlesNeeded >= 1 ? 'text-emerald-500' : 'text-zinc-500'}`}>
+                                            {s.bottlesNeeded.toFixed(2)}
+                                          </span>
+                                          <span className="text-[9px] uppercase font-bold text-zinc-600">Bottles</span>
+                                        </div>
+                                     </td>
+                                  </tr>
+                                ))}
                              </tbody>
                           </table>
                        </div>
@@ -2316,59 +2195,23 @@ export default function App() {
 </Dialog>
 
       <Dialog open={!!selectedCocktail} onOpenChange={open => !open && setSelectedCocktail(null)}>
-        <DialogContent 
-          className="bg-zinc-900 border-zinc-800 text-white max-w-sm rounded-[32px] p-8"
-          onPointerDownOutside={(e) => e.preventDefault()}
-          onEscapeKeyDown={(e) => e.preventDefault()}
-          onInteractOutside={(e) => e.preventDefault()}
-        >
-           <div className="flex justify-between items-center mb-6">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => setSelectedCocktail(null)}
-                className="text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 rounded-xl px-4 uppercase text-[10px] font-bold tracking-widest"
-              >
-                Cancel
-              </Button>
-              <div className="w-10 h-10 bg-blue-600/20 rounded-xl flex items-center justify-center border border-blue-500/20"><GlassWater className="text-blue-500 w-5 h-5" /></div>
-           </div>
-
+        <DialogContent className="bg-zinc-900 border-zinc-800 text-white max-w-sm rounded-[32px] p-8">
            <div className="text-center mb-8">
-             <h2 className="text-xl font-bold uppercase tracking-tight">{selectedCocktail?.name}</h2>
-             <p className="text-[10px] text-zinc-500 mt-2 font-mono uppercase truncate px-4">{selectedCocktail?.ingredients.filter(i => i.isAlcohol).map(i=>`${i.ml}ml ${i.name}`).join(' / ')}</p>
+             <div className="w-16 h-16 bg-blue-600/20 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-blue-500/20"><GlassWater className="text-blue-500 w-8 h-8" /></div>
+             <h2 className="text-xl font-bold">{selectedCocktail?.name}</h2>
+             <p className="text-xs text-zinc-500 mt-2">{selectedCocktail?.ingredients.map(i=>`${i.ml}ml ${i.name}`).join(' / ')}</p>
            </div>
 
-           <div className="bg-black border border-zinc-800 rounded-3xl p-8 text-center mb-8 shadow-inner">
-             <p className="text-[10px] uppercase text-zinc-500 tracking-widest mb-6 font-bold">Adjust Quantity</p>
-             <div className="flex items-center justify-center gap-8">
-                <Button variant="outline" size="icon" onClick={() => setQuantityInput(Math.max(1, parseInt(quantityInput)-1).toString())} className="rounded-full w-12 h-12 bg-zinc-900 border-zinc-800 hover:bg-zinc-800 hover:border-zinc-700 active:scale-95 transition-all text-xl font-bold">—</Button>
-                <input 
-                  ref={quantityInputRef} 
-                  type="number" 
-                  value={quantityInput} 
-                  onChange={e => setQuantityInput(e.target.value.replace(/\D/g,''))} 
-                  onFocus={e => e.target.select()}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleAddUsage();
-                    }
-                  }}
-                  className="w-24 text-5xl font-mono font-bold text-center bg-transparent border-none focus:ring-0 outline-none hover:text-blue-500 transition-colors" 
-                />
-                <Button variant="outline" size="icon" onClick={() => setQuantityInput((parseInt(quantityInput)+1).toString())} className="rounded-full w-12 h-12 bg-zinc-900 border-zinc-800 hover:bg-zinc-800 hover:border-zinc-700 active:scale-95 transition-all text-xl font-bold">+</Button>
+           <div className="bg-black border border-zinc-800 rounded-3xl p-6 text-center mb-8">
+             <p className="text-[10px] uppercase text-zinc-500 tracking-widest mb-4">Quantity Sold</p>
+             <div className="flex items-center justify-center gap-6">
+                <Button variant="outline" size="icon" onClick={() => setQuantityInput(Math.max(1, parseInt(quantityInput)-1).toString())} className="rounded-xl">—</Button>
+                <input ref={quantityInputRef} type="number" value={quantityInput} onChange={e => setQuantityInput(e.target.value.replace(/\D/g,''))} onFocus={e => e.target.select()} className="w-20 text-3xl font-mono font-bold text-center bg-transparent border-none focus:ring-0 outline-none" />
+                <Button variant="outline" size="icon" onClick={() => setQuantityInput((parseInt(quantityInput)+1).toString())} className="rounded-xl">+</Button>
              </div>
            </div>
            
-           <DialogFooter>
-             <Button 
-               onClick={handleAddUsage} 
-               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold h-16 rounded-[24px] text-lg uppercase tracking-tight shadow-lg shadow-blue-900/20 group"
-             >
-               RECORD SALE <ChevronRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
-             </Button>
-           </DialogFooter>
+           <DialogFooter><Button onClick={handleAddUsage} className="w-full bg-white text-black font-bold h-14 rounded-2xl">RECORD SALE</Button></DialogFooter>
         </DialogContent>
       </Dialog>
        <Dialog open={!!selectedLog} onOpenChange={open => !open && setSelectedLog(null)}>

@@ -8,22 +8,15 @@ export const db = getFirestore(app, (firebaseConfig as any).firestoreDatabaseId)
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
-let isSigningIn = false;
-
 export const signIn = async () => {
-  if (isSigningIn) return null;
-  isSigningIn = true;
   try {
-    const result = await signInWithPopup(auth, googleProvider);
-    return result;
+    return await signInWithPopup(auth, googleProvider);
   } catch (error: any) {
-    if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
-      // These are expected if user cancels or closes, don't throw
+    if (error.code === 'auth/popup-closed-by-user') {
+      // User closed the popup before finishing sign in, which is fine
       return null;
     }
     throw error;
-  } finally {
-    isSigningIn = false;
   }
 };
 export const logOut = () => signOut(auth);
