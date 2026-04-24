@@ -20,6 +20,15 @@ export interface UsageRecord {
 export interface StockLevel {
   ingredientName: string;
   initialMl: number;
+  // Packaging/Unit info
+  baseUnitQty?: number;  // e.g., 700
+  baseUnitType?: string; // e.g., 'ml', 'g', 'pcs'
+  preferredUnit?: string; // e.g., 'btl', 'box', 'kg', 'l'
+  // Garnish info
+  isGarnish?: boolean;
+  dailyDepletion?: number; // amount used per day regardless of sales
+  shelfLifeDays?: number;  // days until expiration
+  lastRestockDate?: number; // timestamp
 }
 
 export interface DailyLog {
@@ -33,6 +42,7 @@ export interface BatchRecipe {
   name: string;
   baseVolume: number; // e.g., 20 for 20L
   ingredients: Ingredient[];
+  portionSize: number; // amount poured per drink in ml
   steps: string[];
 }
 
