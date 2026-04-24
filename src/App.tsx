@@ -2420,6 +2420,35 @@ export default function App() {
                 </div>
               </div>
 
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                {batchRecipes.filter(r => r.name.toLowerCase().includes(batchSearchQuery.toLowerCase())).map(recipe => (
+                  <div key={recipe.id} className="bg-zinc-900 border border-zinc-800 p-6 rounded-[32px] space-y-4">
+                    <h3 className="text-xl font-bold text-white">{recipe.name}</h3>
+                    <div className="space-y-4">
+                      <label className="text-xs font-bold uppercase tracking-widest text-zinc-500">Ingredient Mapping</label>
+                      {recipe.ingredients.map(ing => (
+                        <div key={ing.name} className="flex items-center gap-2">
+                           <span className="text-sm text-zinc-300 w-1/3 truncate">{ing.name}:</span>
+                           <select 
+                             className="flex-1 bg-zinc-950 border border-zinc-800 text-white rounded-lg p-2 text-sm"
+                             value={recipe.ingredientMapping?.[ing.name] || ''}
+                             onChange={(e) => {
+                               const newMapping = { ...(recipe.ingredientMapping || {}), [ing.name]: e.target.value };
+                               updateBatchRecipeMapping(recipe.id, newMapping);
+                             }}
+                           >
+                             <option value="">Select Stock Item...</option>
+                             {stock.map(s => (
+                               <option key={s.ingredientName} value={s.ingredientName}>{s.ingredientName}</option>
+                             ))}
+                           </select>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-6">
                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -3055,6 +3084,10 @@ export default function App() {
                        </select>
                      )}
                    </div>
+                 </div>
+                 <div className="space-y-2">
+                   <label className="text-[10px] uppercase text-zinc-500 font-bold tracking-widest">Category</label>
+                   <Input value={newSpiritCategory} onChange={e => setNewSpiritCategory(e.target.value)} className="bg-zinc-900 border-zinc-800 h-12 rounded-xl" placeholder="e.g. Syrup, Juice, Vodka" />
                  </div>
                  {stockFilter === 'alcohol' && (
                    <div className="space-y-2">
