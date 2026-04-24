@@ -1698,7 +1698,10 @@ export default function App() {
         cocktailsToRemove.forEach(c => batch.delete(doc(db, 'cocktails', c.id)));
         
         // Remove stock associated with these items
-        spiritsToRemove.forEach(s => batch.delete(doc(db, 'stock', s)));
+        spiritsToRemove.forEach(s => {
+          const stockId = spiritMapping[s] || s;
+          batch.delete(doc(db, 'stock', stockId));
+        });
         
         // Update settings
         batch.set(doc(db, 'settings', user.uid), {
@@ -1726,7 +1729,13 @@ export default function App() {
     setExcelOrder(nextOrder);
     setManualNonAlcoholic(nextManualNonAlch);
     setStockInputUnits(nextUnits);
-    setStock(prev => prev.filter(s => !spiritsToRemove.includes(s.ingredientName)));
+    setStock(prev => prev.filter(s => {
+      const isRemoved = spiritsToRemove.some(internalName => {
+        const displayName = spiritMapping[internalName] || internalName;
+        return s.ingredientName === displayName;
+      });
+      return !isRemoved;
+    }));
     setCocktails(prev => prev.filter(c => !spiritsToRemove.includes(c.name)));
     setSpiritsToRemove([]);
     setIsSpiritDialogOpen(false);
