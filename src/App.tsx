@@ -527,6 +527,7 @@ export default function App() {
   const [newSpiritGlassSize, setNewSpiritGlassSize] = useState('45');
   const [newSpiritPosition, setNewSpiritPosition] = useState('');
   const [newSpiritUnit, setNewSpiritUnit] = useState('ml');
+  const [newSpiritCategory, setNewSpiritCategory] = useState('');
   const [spiritsToRemove, setSpiritsToRemove] = useState<string[]>([]);
   const [recipeName, setRecipeName] = useState('');
   const [recipeIngredients, setRecipeIngredients] = useState<Ingredient[]>([]);
@@ -554,8 +555,7 @@ export default function App() {
     ];
 
     const FORCED_NON_ALCOHOLIC = [
-      'monin passionfruit syrup', 'monin strawberry syrup', 'monin pineapple syrup',
-      'monin rose syrup', 'monin butterscotch syrup', 'monin coconut syrup',
+      'monin',
       'tonic water (330ml)', 'club soda (330ml)', 'ginger ale (330ml)',
       'orange juice (1l)', 'pineapple juice (1l)', 'water', 'mango juice (1l)',
       'coconut juice (1l)', 'guava juice (1l)', 'lime juice (1l)', 'lemon juice (1l)'
@@ -566,7 +566,7 @@ export default function App() {
       if (existing) return; // Keep existing classification from recipes
 
       // If in FORCED_NON_ALCOHOLIC, force false.
-      if (FORCED_NON_ALCOHOLIC.includes(k.toLowerCase())) {
+      if (FORCED_NON_ALCOHOLIC.some(hint => k.toLowerCase().includes(hint.toLowerCase()))) {
         processIngredient(k, false);
         return;
       }
@@ -1419,6 +1419,21 @@ export default function App() {
     alert(`Batch of ${targetVol}L ${recipe.name} logged successfully.`);
   };
 
+  const updateBatchRecipeMapping = async (recipeId: string, mapping: { [key: string]: string }) => {
+    const updatedRecipes = batchRecipes.map(r => r.id === recipeId ? { ...r, ingredientMapping: mapping } : r);
+    setBatchRecipes(updatedRecipes);
+    // Persist to Firebase
+    if (user) {
+      try {
+        const recipeDoc = doc(db, 'batchRecipes', recipeId);
+        await updateDoc(recipeDoc, { ingredientMapping: mapping });
+      } catch (e) {
+        console.error(e);
+        // handleFirestoreError(e as Error, 'update', `batchRecipes/${recipeId}`);
+      }
+    }
+  };
+
   const handleDeleteBatchLog = async (id: string) => {
     if (window.confirm("Are you sure you want to delete this batch log?")) {
       if (user) {
@@ -1507,7 +1522,8 @@ export default function App() {
             ingredientName: newName,
             baseUnitQty: bSize,
             baseUnitType: currentUnit,
-            preferredUnit: currentUnit
+            preferredUnit: currentUnit,
+            category: newSpiritCategory
           };
         }
         return s;
@@ -1550,6 +1566,7 @@ export default function App() {
             baseUnitQty: bSize,
             baseUnitType: currentUnit,
             preferredUnit: currentUnit,
+            category: newSpiritCategory,
             userId: user.uid,
             updatedAt: Timestamp.now()
           });
@@ -1628,6 +1645,7 @@ export default function App() {
           baseUnitQty: bSize,
           baseUnitType: currentUnit,
           preferredUnit: currentUnit,
+          category: newSpiritCategory,
           userId: user.uid,
           updatedAt: Timestamp.now()
         });
@@ -1649,7 +1667,8 @@ export default function App() {
       initialMl: 0,
       baseUnitQty: bSize,
       baseUnitType: currentUnit,
-      preferredUnit: currentUnit
+      preferredUnit: currentUnit,
+      category: newSpiritCategory
     }]);
 
     setIsSpiritDialogOpen(false);

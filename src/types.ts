@@ -26,6 +26,7 @@ export interface StockLevel {
   preferredUnit?: string; // e.g., 'btl', 'box', 'kg', 'l'
   // Garnish info
   isGarnish?: boolean;
+  category?: string;
   dailyDepletion?: number; // amount used per day regardless of sales
   shelfLifeDays?: number;  // days until expiration
   lastRestockDate?: number; // timestamp
@@ -44,6 +45,7 @@ export interface BatchRecipe {
   ingredients: Ingredient[];
   portionSize: number; // amount poured per drink in ml
   steps: string[];
+  ingredientMapping?: { [ingredientName: string]: string }; // Maps recipe ingredient name to stock ingredient name
 }
 
 export interface BatchLog {
